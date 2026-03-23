@@ -42,10 +42,13 @@ export default function VideoCall({ localStream, remoteStream, callError, userId
   }, [localStream]);
 
   useEffect(() => {
-    if (remoteRef.current && remoteStream) {
-      remoteRef.current.srcObject = remoteStream;
-      remoteRef.current.play().catch(() => {});
+    const video = remoteRef.current;
+    if (!video || !remoteStream) return;
+    // Only reassign if the stream object changed
+    if (video.srcObject !== remoteStream) {
+      video.srcObject = remoteStream;
     }
+    video.play().catch(() => {});
   }, [remoteStream]);
 
   // Listen for in-call chat messages from stranger

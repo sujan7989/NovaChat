@@ -1,9 +1,6 @@
 import { useRef, useState, useCallback } from "react";
 import socket from "./socket";
 
-// Using only reliable STUN servers + no TURN (TURN creds expire)
-// WebRTC will work for most users on same network or open NAT
-// For symmetric NAT users, we use Google's public STUN
 const ICE_SERVERS: RTCConfiguration = {
   iceServers: [
     { urls: "stun:stun.l.google.com:19302" },
@@ -30,9 +27,9 @@ async function getStream(): Promise<MediaStream> {
 }
 
 export function useWebRTC(userId: string) {
-  const pcRef          = useRef<RTCPeerConnection | null>(null);
-  const localStreamRef = useRef<MediaStream | null>(null);
-  const remoteStreamRef = useRef<MediaStream>(new MediaStream());
+  const pcRef             = useRef<RTCPeerConnection | null>(null);
+  const localStreamRef    = useRef<MediaStream | null>(null);
+  const remoteStreamRef   = useRef<MediaStream>(new MediaStream());
   const pendingCandidates = useRef<RTCIceCandidateInit[]>([]);
 
   const [localStream,  setLocalStream]  = useState<MediaStream | null>(null);
@@ -60,15 +57,20 @@ export function useWebRTC(userId: string) {
       if (candidate) socket.emit("webrtc:ice", { userId, candidate });
     };
 
-    // KEY FIX: add each track to a persistent MediaStream ref and update state
+    // Fix: avoid duplicate tracks — only add if not already present
     pc.ontrack = (e) => {
+      const stream = remoteStreamRef.current;
+      const existingIds = stream.getTracks().map(t => t.id);
+      if (!existingIds.includes(e.track.id)) {
+        stream.addTrack(e.track);
+      }
+      // Update state to trigger re-render
+      setRemoteStream(new MediaStream(stream.getTracks()));
+
+      // Also update when track unmutes (some browsers delay this)
       e.track.onunmute = () => {
-        remoteStreamRef.current.addTrack(e.track);
-        setRemoteStream(new MediaStream(remoteStreamRef.current.getTracks()));
+        setRemoteStream(new MediaStream(stream.getTracks()));
       };
-      // Also add immediately in case already unmuted
-      remoteStreamRef.current.addTrack(e.track);
-      setRemoteStream(new MediaStream(remoteStreamRef.current.getTracks()));
     };
 
     pc.onconnectionstatechange = () => {
@@ -86,9 +88,8 @@ export function useWebRTC(userId: string) {
     return pc;
   }, [userId]);
 
-  // Flush pending ICE candidates once remote description is set
   const flushCandidates = useCallback(async () => {
-    if (!pcRef.current || !pcRef.current.remoteDescription) return;
+    if (!pcRef.current?.remoteDescription) return;
     for (const c of pendingCandidates.current) {
       try { await pcRef.current.addIceCandidate(c); } catch {}
     }
@@ -116,6 +117,21 @@ export function useWebRTC(userId: string) {
   const handleOffer = useCallback(async (offer: RTCSessionDescriptionInit) => {
     try {
       setCallError(null);
+
+      // If we already have a peer connection with a local offer (glare), ignore incoming offer
+      // The side that sent the offer first wins; the other side answers
+      if (pcRef.current && pcRef.current.signalingState === "have-local-offer") {
+        // Glare: both sides sent offers. Use userId comparison to decide who answers.
+        // The server sends the offer from the partner — we just answer it (rollback our offer)
+        try {
+          await pcRef.current.setLocalDescription({ type: "rollback" });
+        } catch {
+          // Rollback not supported — close and recreate
+          pcRef.current.close();
+          pcRef.current = null;
+        }
+      }
+
       const stream = await getStream();
       localStreamRef.current = stream;
       setLocalStream(stream);
@@ -149,7 +165,6 @@ export function useWebRTC(userId: string) {
       if (pcRef.current.remoteDescription) {
         await pcRef.current.addIceCandidate(new RTCIceCandidate(candidate));
       } else {
-        // Buffer until remote description is set
         pendingCandidates.current.push(candidate);
       }
     } catch {}
