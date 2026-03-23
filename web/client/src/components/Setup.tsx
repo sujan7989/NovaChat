@@ -128,9 +128,9 @@ export default function Setup({ onDone }: Props) {
   };
 
   const cardStyle = (sel: boolean) => ({
-    background: sel ? "rgba(99,102,241,0.18)" : "rgba(255,255,255,0.04)",
-    border: `1px solid ${sel ? "rgba(139,92,246,0.75)" : "rgba(255,255,255,0.08)"}`,
-    boxShadow: sel ? "0 0 22px rgba(99,102,241,0.28)" : "none",
+    background: sel ? "rgba(99,102,241,0.22)" : "rgba(255,255,255,0.07)",
+    border: `1px solid ${sel ? "rgba(139,92,246,0.85)" : "rgba(255,255,255,0.18)"}`,
+    boxShadow: sel ? "0 0 24px rgba(99,102,241,0.35), inset 0 1px 0 rgba(255,255,255,0.1)" : "inset 0 1px 0 rgba(255,255,255,0.05)",
   });
 
   const ctaText = () => {
@@ -212,7 +212,7 @@ export default function Setup({ onDone }: Props) {
             </p>
             <div className="w-full max-w-lg space-y-6">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-widest mb-3 text-center" style={{ color: "#475569" }}>I am a</p>
+                <p className="text-xs font-semibold uppercase tracking-widest mb-3 text-center" style={{ color: "#94a3b8" }}>I am a</p>
                 <div className="grid grid-cols-3 gap-3">
                   {GENDERS.map(g => (
                     <button key={g.value} onClick={() => setGender(g.value)}
@@ -220,13 +220,13 @@ export default function Setup({ onDone }: Props) {
                       style={cardStyle(gender === g.value)}>
                       {gender === g.value && <CheckBadge />}
                       <span className="text-4xl">{g.icon}</span>
-                      <span className="text-sm font-bold" style={{ color: gender === g.value ? "#c4b5fd" : "#64748b" }}>{g.label}</span>
+                      <span className="text-sm font-bold" style={{ color: gender === g.value ? "#c4b5fd" : "#e2e8f0" }}>{g.label}</span>
                     </button>
                   ))}
                 </div>
               </div>
               <div>
-                <p className="text-xs font-semibold uppercase tracking-widest mb-3 text-center" style={{ color: "#475569" }}>I want to chat with</p>
+                <p className="text-xs font-semibold uppercase tracking-widest mb-3 text-center" style={{ color: "#94a3b8" }}>I want to chat with</p>
                 <div className="grid grid-cols-3 gap-3">
                   {PREFS.map(p => (
                     <button key={p.value} onClick={() => setPref(p.value)}
@@ -234,7 +234,7 @@ export default function Setup({ onDone }: Props) {
                       style={cardStyle(pref === p.value)}>
                       {pref === p.value && <CheckBadge />}
                       <span className="text-4xl">{p.icon}</span>
-                      <span className="text-sm font-bold" style={{ color: pref === p.value ? "#c4b5fd" : "#64748b" }}>{p.label}</span>
+                      <span className="text-sm font-bold" style={{ color: pref === p.value ? "#c4b5fd" : "#e2e8f0" }}>{p.label}</span>
                     </button>
                   ))}
                 </div>
