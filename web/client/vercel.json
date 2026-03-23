@@ -2,8 +2,11 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "framework": "vite",
-  "rewrites": [
-    { "source": "/sitemap.xml", "destination": "/sitemap.xml" },
-    { "source": "/(.*)", "destination": "/index.html" }
+  "routes": [
+    { "src": "/sitemap.xml", "dest": "/sitemap.xml" },
+    { "src": "/manifest.json", "dest": "/manifest.json" },
+    { "src": "/favicon.svg", "dest": "/favicon.svg" },
+    { "src": "/(.*\\..+)", "dest": "/$1" },
+    { "src": "/(.*)", "dest": "/index.html" }
   ]
 }
