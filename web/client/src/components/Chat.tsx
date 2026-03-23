@@ -472,22 +472,22 @@ export default function Chat({ profile, onStop }: Props) {
         </div>
 
         {/* Chat header */}
-        <div className="shrink-0 flex items-center gap-3 px-5 py-3 relative z-10"
+        <div className="shrink-0 flex items-center gap-3 px-4 py-3 relative z-10"
           style={{ background:"rgba(255,255,255,0.015)", borderBottom:`1px solid ${BORDER}` }}>
           {/* Mobile menu toggle */}
-          <button className="sm:hidden w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-all hover:scale-110"
-            style={{ background:"rgba(99,102,241,0.12)", border:"1px solid rgba(99,102,241,0.25)" }}
+          <button className="sm:hidden w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-all hover:scale-110"
+            style={{ background:"rgba(99,102,241,0.15)", border:"1px solid rgba(99,102,241,0.35)" }}
             onClick={() => setSidebarOpen(p => !p)}>
-            <svg className="w-4 h-4" style={{ color:"#818cf8" }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-5 h-5" style={{ color:"#818cf8" }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
             </svg>
           </button>
-          <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm relative shrink-0"
+          <div className="w-10 h-10 rounded-full flex items-center justify-center text-lg relative shrink-0"
             style={{ background:"linear-gradient(135deg,rgba(99,102,241,0.3),rgba(139,92,246,0.3))", border:"1px solid rgba(99,102,241,0.4)" }}>
             👤
             {status === "chatting" && (
-              <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-green-400"
-                style={{ border:"1.5px solid #07070f" }} />
+              <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-green-400"
+                style={{ border:"2px solid #07070f" }} />
             )}
           </div>
           <div className="flex-1 min-w-0">
@@ -501,27 +501,34 @@ export default function Chat({ profile, onStop }: Props) {
             </p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
+            {/* Skip button — always visible in header */}
+            <button onClick={handleNext}
+              className="next-btn flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-black text-white relative overflow-hidden group transition-all hover:scale-105 active:scale-95">
+              <span className="relative z-10">⏭ Skip</span>
+              <span className="absolute inset-0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700"
+                style={{ background:"linear-gradient(90deg,transparent,rgba(255,255,255,0.2),transparent)" }} />
+            </button>
             <button onClick={() => { setShowVideo(true); startCall(); }}
-              className="w-8 h-8 rounded-lg flex items-center justify-center transition-all hover:scale-110"
-              style={{ background:"rgba(99,102,241,0.12)", border:"1px solid rgba(99,102,241,0.25)" }}>
-              <svg className="w-4 h-4" style={{ color:"#818cf8" }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              className="w-10 h-10 rounded-xl flex items-center justify-center transition-all hover:scale-110"
+              style={{ background:"rgba(99,102,241,0.15)", border:"1px solid rgba(99,102,241,0.35)" }}>
+              <svg className="w-5 h-5" style={{ color:"#818cf8" }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.069A1 1 0 0121 8.82v6.36a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
               </svg>
             </button>
             <button onClick={() => setShowReport(true)}
-              className="w-8 h-8 rounded-lg flex items-center justify-center transition-all hover:scale-110"
-              style={{ background:"rgba(139,92,246,0.12)", border:"1px solid rgba(139,92,246,0.25)" }}>
-              <svg className="w-4 h-4" style={{ color:"#a78bfa" }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              className="w-10 h-10 rounded-xl flex items-center justify-center transition-all hover:scale-110"
+              style={{ background:"rgba(239,68,68,0.12)", border:"1px solid rgba(239,68,68,0.3)" }}>
+              <svg className="w-5 h-5" style={{ color:"#f87171" }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 1H21l-3 6 3 6H10.5l-1-1H5a2 2 0 00-2 2zm9-13.5V9" />
               </svg>
             </button>
-            <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full ml-1"
-              style={{ background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.07)" }}>
-              <svg className="w-3 h-3" style={{ color:"#475569" }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+            <button onClick={handleStop}
+              className="w-10 h-10 rounded-xl flex items-center justify-center transition-all hover:scale-110"
+              style={{ background:"rgba(100,116,139,0.12)", border:"1px solid rgba(100,116,139,0.3)" }}>
+              <svg className="w-5 h-5" style={{ color:"#94a3b8" }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
               </svg>
-              <span className="text-xs" style={{ color:"#475569" }}>End-to-end anon</span>
-            </div>
+            </button>
           </div>
         </div>
 
