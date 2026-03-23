@@ -99,4 +99,9 @@ export async function getStat(key) {
   return parseInt(val) || 0;
 }
 
+// Health check
+export async function ping() {
+  await redis.ping();
+}
+
 export default redis;
