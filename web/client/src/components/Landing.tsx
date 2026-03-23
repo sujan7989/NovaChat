@@ -103,7 +103,7 @@ export default function Landing({ onStart }: Props) {
 
   useEffect(() => {
     setTimeout(() => setVisible(true), 80);
-    const base = import.meta.env.VITE_API_URL || "";
+    const base = import.meta.env.VITE_API_URL || "https://novachat-production-57d2.up.railway.app";
     const load = () => fetch(`${base}/api/stats`).then(r => r.json()).then(setStats).catch(() => {});
     load();
     const iv = setInterval(load, 15000);
