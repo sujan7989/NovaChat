@@ -6,7 +6,6 @@ const redis = new Redis(REDIS_URL);
 redis.on("connect", () => console.log("✅ Redis connected"));
 redis.on("error", (err) => console.error("Redis error:", err));
 
-// --- Pair management ---
 export async function setPair(userA, userB) {
   await redis.set(`session:${userA}`, userB);
   await redis.set(`session:${userB}`, userA);
@@ -23,63 +22,87 @@ export async function removePair(userId) {
   return partner;
 }
 
-// --- Queue management ---
 export async function enqueue(userId, gender, pref, interests, languages, vibes) {
-  const data = JSON.stringify({ userId, gender, pref, interests: interests || [], languages: languages || [], vibes: vibes || [] });
-  await redis.rpush(`queue:${pref}`, data);
-  await redis.rpush("queue:any", data);
+  // Remove any existing entry for this user first
+  await removeFromQueue(userId);
+  const data = JSON.stringify({
+    userId,
+    gender:    gender    || "other",
+    pref:      pref      || "any",
+    interests: interests || [],
+    languages: languages || [],
+    vibes:     vibes     || [],
+  });
+  await redis.rpush("queue:all", data);
 }
 
-export async function dequeueMatch(userId, myGender, myPref, myInterests, myLanguages) {
-  const queues = myPref === "any"
-    ? ["queue:any"]
-    : [`queue:${myGender}`, "queue:any"];
+function hasOverlap(a, b) {
+  if (!a.length || !b.length) return false;
+  return a.some(x => b.includes(x));
+}
 
-  for (const q of queues) {
-    const members = await redis.lrange(q, 0, -1);
-    for (const raw of members) {
-      const candidate = JSON.parse(raw);
-      if (candidate.userId === userId) continue;
+export async function dequeueMatch(userId, myGender, myPref, myInterests, myLanguages, myVibes) {
+  const myLangs = myLanguages || [];
+  const myInts  = myInterests || [];
+  const myVbs   = myVibes     || [];
 
-      // Mutual preference check
-      const iWantThem = myPref === "any" || myPref === candidate.gender;
-      const theyWantMe = candidate.pref === "any" || candidate.pref === myGender;
-      if (!iWantThem || !theyWantMe) continue;
+  const members = await redis.lrange("queue:all", 0, -1);
 
-      // Language filter
-      const myLangs = myLanguages || [];
-      const theirLangs = candidate.languages || [];
-      if (myLangs.length > 0 && theirLangs.length > 0) {
-        const overlap = myLangs.some(l => theirLangs.includes(l));
-        if (!overlap) continue;
-      }
+  let bestRaw   = null;
+  let bestScore = -Infinity;
 
-      // Remove from all queues
-      await redis.lrem(`queue:${candidate.pref}`, 0, raw);
-      await redis.lrem("queue:any", 0, raw);
+  for (const raw of members) {
+    let c;
+    try { c = JSON.parse(raw); } catch { continue; }
+    if (c.userId === userId) continue;
 
-      const shared = (myInterests || []).filter(i => (candidate.interests || []).includes(i));
-      return { partnerId: candidate.userId, shared, partnerVibes: candidate.vibes || [] };
+    // Gender pref — hard rule only when specific pref set
+    const myPrefSpecific    = myPref !== "any";
+    const theirPrefSpecific = c.pref !== "any";
+
+    if (myPrefSpecific    && myPref !== c.gender)  continue;
+    if (theirPrefSpecific && c.pref !== myGender)  continue;
+
+    let score = 1; // base: gender compatible
+
+    const langOverlap = hasOverlap(myLangs, c.languages);
+    if (langOverlap) score += 10;
+    else if (myLangs.length > 0 && c.languages.length > 0) score -= 5;
+
+    const sharedCount = myInts.filter(x => c.interests.includes(x)).length;
+    score += sharedCount * 3;
+
+    if (hasOverlap(myVbs, c.vibes)) score += 4;
+
+    if (score > bestScore) {
+      bestScore = score;
+      bestRaw   = raw;
     }
   }
-  return null;
+
+  if (!bestRaw) return null;
+
+  const chosen = JSON.parse(bestRaw);
+
+  // Remove chosen from queue
+  await redis.lrem("queue:all", 1, bestRaw);
+
+  const shared = myInts.filter(x => chosen.interests.includes(x));
+  return { partnerId: chosen.userId, shared, partnerVibes: chosen.vibes || [] };
 }
 
 export async function removeFromQueue(userId) {
-  for (const pref of ["male", "female", "other", "any"]) {
-    const members = await redis.lrange(`queue:${pref}`, 0, -1);
-    for (const raw of members) {
-      try {
-        const parsed = JSON.parse(raw);
-        if (parsed.userId === userId) {
-          await redis.lrem(`queue:${pref}`, 0, raw);
-        }
-      } catch {}
-    }
+  const members = await redis.lrange("queue:all", 0, -1);
+  for (const raw of members) {
+    try {
+      const parsed = JSON.parse(raw);
+      if (parsed.userId === userId) {
+        await redis.lrem("queue:all", 0, raw);
+      }
+    } catch {}
   }
 }
 
-// --- Reports ---
 export async function addReport(userId) {
   return await redis.incr(`reports:${userId}`);
 }
@@ -89,7 +112,6 @@ export async function getReportCount(userId) {
   return parseInt(val) || 0;
 }
 
-// --- Stats ---
 export async function incrementStat(key) {
   await redis.incr(`stat:${key}`);
 }
@@ -99,7 +121,6 @@ export async function getStat(key) {
   return parseInt(val) || 0;
 }
 
-// Health check
 export async function ping() {
   await redis.ping();
 }

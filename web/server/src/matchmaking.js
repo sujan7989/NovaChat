@@ -5,7 +5,8 @@ export async function findOrQueue(userId, gender, pref, interests, languages, vi
   const existing = await s.getPartner(userId);
   if (existing) return null;
 
-  const match = await s.dequeueMatch(userId, gender, pref, interests, languages);
+  // Pass all preferences — matching is scored/soft, never hard-blocks
+  const match = await s.dequeueMatch(userId, gender, pref, interests, languages, vibes);
   if (match) {
     await s.setPair(userId, match.partnerId);
     await s.incrementStat("total_matches");
