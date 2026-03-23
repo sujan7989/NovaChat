@@ -35,11 +35,17 @@ export default function VideoCall({ localStream, remoteStream, callError, userId
   useEffect(() => { setTimeout(() => setEntered(true), 30); }, []);
 
   useEffect(() => {
-    if (localRef.current && localStream) localRef.current.srcObject = localStream;
+    if (localRef.current && localStream) {
+      localRef.current.srcObject = localStream;
+      localRef.current.play().catch(() => {});
+    }
   }, [localStream]);
 
   useEffect(() => {
-    if (remoteRef.current && remoteStream) remoteRef.current.srcObject = remoteStream;
+    if (remoteRef.current && remoteStream) {
+      remoteRef.current.srcObject = remoteStream;
+      remoteRef.current.play().catch(() => {});
+    }
   }, [remoteStream]);
 
   // Listen for in-call chat messages from stranger
@@ -105,7 +111,7 @@ export default function VideoCall({ localStream, remoteStream, callError, userId
         {/* Remote video */}
         <div className="flex-1 relative overflow-hidden" style={{ background: "radial-gradient(ellipse at 50% 50%,#0d0820 0%,#000 100%)" }}>
           <video ref={remoteRef} autoPlay playsInline
-            className="w-full h-full" style={{ objectFit: "contain", background: "#000" }} />
+            className="w-full h-full" style={{ objectFit: "cover", background: "#000" }} />
 
           {!remoteStream && (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-5"
@@ -152,8 +158,8 @@ export default function VideoCall({ localStream, remoteStream, callError, userId
               style={{ background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)" }}>You</div>
           </div>
 
-          {/* HD badge */}
-          {remoteStream && (
+          {/* HD badge — only show when remote stream has active tracks */}
+          {remoteStream && remoteStream.getVideoTracks().length > 0 && (
             <div className="absolute top-4 left-4 flex items-center gap-1.5 px-2.5 py-1 rounded-lg"
               style={{ background: "rgba(0,0,0,0.5)", backdropFilter: "blur(8px)", border: "1px solid rgba(255,255,255,0.1)" }}>
               <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
