@@ -1,81 +1,85 @@
 import { useRef, useState, useCallback } from "react";
 import socket from "./socket";
 
-const ICE_SERVERS = {
+const ICE_SERVERS: RTCConfiguration = {
   iceServers: [
     { urls: "stun:stun.l.google.com:19302" },
     { urls: "stun:stun1.l.google.com:19302" },
-    { urls: "stun:stun2.l.google.com:19302" },
-    { urls: "stun:stun3.l.google.com:19302" },
-    // Free TURN fallback — handles symmetric NAT (~15% of users)
-    { urls: "turn:openrelay.metered.ca:80",      username: "openrelayproject", credential: "openrelayproject" },
-    { urls: "turn:openrelay.metered.ca:443",     username: "openrelayproject", credential: "openrelayproject" },
-    { urls: "turn:openrelay.metered.ca:443?transport=tcp", username: "openrelayproject", credential: "openrelayproject" },
+    { urls: "stun:global.stun.twilio.com:3478" },
+    // Metered TURN — reliable free tier
+    {
+      urls: "turn:a.relay.metered.ca:80",
+      username: "83eebabf8b4cce9d5dbcb649",
+      credential: "2D7JvfkOQtBdYW3R",
+    },
+    {
+      urls: "turn:a.relay.metered.ca:80?transport=tcp",
+      username: "83eebabf8b4cce9d5dbcb649",
+      credential: "2D7JvfkOQtBdYW3R",
+    },
+    {
+      urls: "turn:a.relay.metered.ca:443",
+      username: "83eebabf8b4cce9d5dbcb649",
+      credential: "2D7JvfkOQtBdYW3R",
+    },
+    {
+      urls: "turn:a.relay.metered.ca:443?transport=tcp",
+      username: "83eebabf8b4cce9d5dbcb649",
+      credential: "2D7JvfkOQtBdYW3R",
+    },
   ],
+  iceCandidatePoolSize: 10,
 };
 
-// High-quality media constraints
-const MEDIA_CONSTRAINTS: MediaStreamConstraints = {
-  video: {
-    width:       { ideal: 1280, min: 640 },
-    height:      { ideal: 720,  min: 480 },
-    frameRate:   { ideal: 30,   min: 15  },
-    facingMode:  "user",
-  },
-  audio: {
-    echoCancellation:    true,
-    noiseSuppression:    true,
-    autoGainControl:     true,
-    sampleRate:          { ideal: 48000 },
-    channelCount:        { ideal: 1 },
-  },
-};
+// Try HD first, fall back progressively
+async function getStream(): Promise<MediaStream> {
+  const attempts: MediaStreamConstraints[] = [
+    {
+      video: { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 }, facingMode: "user" },
+      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+    },
+    {
+      video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: "user" },
+      audio: { echoCancellation: true, noiseSuppression: true },
+    },
+    { video: true, audio: true },
+  ];
 
-/** Prefer VP9 > VP8 > H264 for video; opus for audio */
-function preferCodecs(sdp: string): string {
-  // Boost video bitrate hint in SDP
-  sdp = sdp.replace(/b=AS:\d+/g, "b=AS:2000");
-  return sdp;
-}
-
-/** Apply bandwidth constraints on the sender tracks */
-async function applyBandwidth(pc: RTCPeerConnection) {
-  for (const sender of pc.getSenders()) {
-    if (!sender.track) continue;
-    const params = sender.getParameters();
-    if (!params.encodings) params.encodings = [{}];
-    if (sender.track.kind === "video") {
-      params.encodings[0].maxBitrate    = 2_000_000; // 2 Mbps
-      params.encodings[0].maxFramerate  = 30;
-    } else if (sender.track.kind === "audio") {
-      params.encodings[0].maxBitrate    = 128_000;   // 128 kbps
-    }
-    try { await sender.setParameters(params); } catch {}
+  for (const constraints of attempts) {
+    try {
+      return await navigator.mediaDevices.getUserMedia(constraints);
+    } catch {}
   }
+  throw new Error("Camera/microphone access denied. Please allow permissions and try again.");
 }
 
 export function useWebRTC(userId: string) {
-  const pcRef             = useRef<RTCPeerConnection | null>(null);
-  const localStreamRef    = useRef<MediaStream | null>(null);
-  const iceRestartTimer   = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pcRef           = useRef<RTCPeerConnection | null>(null);
+  const localStreamRef  = useRef<MediaStream | null>(null);
+  const restartTimer    = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const makingOffer     = useRef(false);
+
   const [localStream,  setLocalStream]  = useState<MediaStream | null>(null);
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
-  const [callActive,   setCallActive]   = useState(false);
   const [callError,    setCallError]    = useState<string | null>(null);
 
   const cleanup = useCallback(() => {
-    if (iceRestartTimer.current) clearTimeout(iceRestartTimer.current);
+    if (restartTimer.current) clearTimeout(restartTimer.current);
     pcRef.current?.close();
     pcRef.current = null;
     localStreamRef.current?.getTracks().forEach(t => t.stop());
     localStreamRef.current = null;
     setLocalStream(null);
     setRemoteStream(null);
-    setCallActive(false);
     setCallError(null);
   }, []);
 
   const createPC = useCallback(() => {
+    if (pcRef.current) {
+      pcRef.current.close();
+      pcRef.current = null;
+    }
+
     const pc = new RTCPeerConnection(ICE_SERVERS);
 
     pc.onicecandidate = ({ candidate }) => {
@@ -83,30 +87,39 @@ export function useWebRTC(userId: string) {
     };
 
     pc.ontrack = (e) => {
-      setRemoteStream(e.streams[0] ?? null);
+      const stream = e.streams[0];
+      if (stream) setRemoteStream(stream);
     };
 
-    // Surface connection state to UI + attempt ICE restart on failure
     pc.onconnectionstatechange = () => {
-      const state = pc.connectionState;
-      if (state === "failed") {
-        setCallError("Connection failed — attempting to reconnect...");
-        // ICE restart: renegotiate with new ICE candidates
-        iceRestartTimer.current = setTimeout(async () => {
-          if (!pcRef.current) return;
+      const s = pc.connectionState;
+      if (s === "connected") {
+        setCallError(null);
+        if (restartTimer.current) clearTimeout(restartTimer.current);
+      } else if (s === "disconnected") {
+        setCallError("Connection unstable — trying to reconnect...");
+        // Give it 4s to self-recover before ICE restart
+        restartTimer.current = setTimeout(async () => {
+          if (!pcRef.current || pcRef.current.connectionState === "connected") return;
           try {
+            makingOffer.current = true;
             const offer = await pcRef.current.createOffer({ iceRestart: true });
             await pcRef.current.setLocalDescription(offer);
             socket.emit("webrtc:offer", { userId, offer });
-            setCallError(null);
           } catch {
-            setCallError("Video call failed. Please try again.");
+            setCallError("Reconnect failed. Please end and restart the call.");
+          } finally {
+            makingOffer.current = false;
           }
-        }, 1500);
-      } else if (state === "disconnected") {
-        setCallError("Connection unstable...");
-      } else if (state === "connected") {
-        setCallError(null);
+        }, 4000);
+      } else if (s === "failed") {
+        setCallError("Connection failed. Please end and restart the call.");
+      }
+    };
+
+    pc.oniceconnectionstatechange = () => {
+      if (pc.iceConnectionState === "failed") {
+        pc.restartIce();
       }
     };
 
@@ -114,63 +127,64 @@ export function useWebRTC(userId: string) {
     return pc;
   }, [userId]);
 
-  const getStream = useCallback(async () => {
-    try {
-      return await navigator.mediaDevices.getUserMedia(MEDIA_CONSTRAINTS);
-    } catch {
-      // Fallback to lower constraints if device doesn't support HD
-      return await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-    }
-  }, []);
-
   const startCall = useCallback(async () => {
-    const stream = await getStream();
-    localStreamRef.current = stream;
-    setLocalStream(stream);
+    try {
+      setCallError(null);
+      const stream = await getStream();
+      localStreamRef.current = stream;
+      setLocalStream(stream);
 
-    const pc = createPC();
-    stream.getTracks().forEach(t => pc.addTrack(t, stream));
+      const pc = createPC();
+      stream.getTracks().forEach(t => pc.addTrack(t, stream));
 
-    const offer = await pc.createOffer({
-      offerToReceiveAudio: true,
-      offerToReceiveVideo: true,
-    });
-    offer.sdp = preferCodecs(offer.sdp!);
-    await pc.setLocalDescription(offer);
-    socket.emit("webrtc:offer", { userId, offer });
-
-    await applyBandwidth(pc);
-    setCallActive(true);
-  }, [userId, createPC, getStream]);
+      makingOffer.current = true;
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+      socket.emit("webrtc:offer", { userId, offer });
+      makingOffer.current = false;
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to start call";
+      setCallError(msg);
+    }
+  }, [userId, createPC]);
 
   const handleOffer = useCallback(async (offer: RTCSessionDescriptionInit) => {
-    const stream = await getStream();
-    localStreamRef.current = stream;
-    setLocalStream(stream);
+    try {
+      setCallError(null);
+      const stream = await getStream();
+      localStreamRef.current = stream;
+      setLocalStream(stream);
 
-    const pc = createPC();
-    stream.getTracks().forEach(t => pc.addTrack(t, stream));
+      const pc = createPC();
+      stream.getTracks().forEach(t => pc.addTrack(t, stream));
 
-    offer.sdp = preferCodecs(offer.sdp!);
-    await pc.setRemoteDescription(offer);
-
-    const answer = await pc.createAnswer();
-    answer.sdp = preferCodecs(answer.sdp!);
-    await pc.setLocalDescription(answer);
-    socket.emit("webrtc:answer", { userId, answer });
-
-    await applyBandwidth(pc);
-    setCallActive(true);
-  }, [userId, createPC, getStream]);
+      await pc.setRemoteDescription(offer);
+      const answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+      socket.emit("webrtc:answer", { userId, answer });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to answer call";
+      setCallError(msg);
+    }
+  }, [userId, createPC]);
 
   const handleAnswer = useCallback(async (answer: RTCSessionDescriptionInit) => {
-    answer.sdp = preferCodecs(answer.sdp!);
-    await pcRef.current?.setRemoteDescription(answer);
-    if (pcRef.current) await applyBandwidth(pcRef.current);
+    try {
+      if (!pcRef.current) return;
+      // Ignore if we're not in the right state
+      if (pcRef.current.signalingState !== "have-local-offer") return;
+      await pcRef.current.setRemoteDescription(answer);
+    } catch {}
   }, []);
 
   const handleIce = useCallback(async (candidate: RTCIceCandidateInit) => {
-    try { await pcRef.current?.addIceCandidate(candidate); } catch {}
+    try {
+      if (!pcRef.current) return;
+      // Buffer ICE candidates if remote description not set yet
+      if (pcRef.current.remoteDescription) {
+        await pcRef.current.addIceCandidate(candidate);
+      }
+    } catch {}
   }, []);
 
   const endCall = useCallback(() => {
@@ -179,7 +193,7 @@ export function useWebRTC(userId: string) {
   }, [userId, cleanup]);
 
   return {
-    localStream, remoteStream, callActive, callError,
+    localStream, remoteStream, callError,
     startCall, handleOffer, handleAnswer, handleIce, endCall, cleanup,
   };
 }

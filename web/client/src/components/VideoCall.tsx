@@ -163,10 +163,10 @@ export default function VideoCall({ localStream, remoteStream, callError, userId
 
           {/* Call error banner */}
           {callError && (
-            <div className="absolute top-4 left-1/2 -translate-x-1/2 flex items-center gap-2 px-4 py-2 rounded-xl"
-              style={{ background: "rgba(251,191,36,0.18)", border: "1px solid rgba(251,191,36,0.45)", backdropFilter: "blur(12px)", whiteSpace: "nowrap" }}>
-              <span className="w-2 h-2 rounded-full bg-yellow-400 animate-pulse shrink-0" />
-              <span className="text-xs font-bold text-yellow-300">{callError}</span>
+            <div className="absolute top-4 left-1/2 -translate-x-1/2 flex items-center gap-2 px-4 py-3 rounded-xl max-w-xs text-center"
+              style={{ background: callError.includes("denied") ? "rgba(239,68,68,0.25)" : "rgba(251,191,36,0.18)", border: `1px solid ${callError.includes("denied") ? "rgba(239,68,68,0.5)" : "rgba(251,191,36,0.45)"}`, backdropFilter: "blur(12px)" }}>
+              <span className="text-lg shrink-0">{callError.includes("denied") ? "🚫" : "⚠️"}</span>
+              <span className="text-xs font-bold" style={{ color: callError.includes("denied") ? "#fca5a5" : "#fde68a" }}>{callError}</span>
             </div>
           )}
         </div>
