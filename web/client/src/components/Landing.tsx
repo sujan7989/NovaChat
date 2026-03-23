@@ -196,6 +196,7 @@ export default function Landing({ onStart }: Props) {
             letterSpacing: "-0.02em",
           }}>
           NovaChat
+        </h1>
 
         {/* Subtitle */}
         <p className="text-base leading-relaxed mb-6" style={{ color: "rgba(255,255,255,0.55)", maxWidth: 380 }}>
