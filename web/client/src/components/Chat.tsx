@@ -415,7 +415,7 @@ export default function Chat({ profile, onStop }: Props) {
         </div>
 
         {/* Sound toggle + bottom actions */}
-        <div className="relative z-10 p-3 space-y-2" style={{ borderTop:`1px solid ${BORDER}` }}>
+        <div className="relative z-10 p-4 space-y-3" style={{ borderTop:`1px solid ${BORDER}` }}>
           <button onClick={handleNext}
             className="next-btn w-full flex items-center justify-center gap-2 py-3 rounded-2xl text-sm font-black text-white relative overflow-hidden group">
             <span className="relative z-10 flex items-center gap-1.5">
