@@ -195,8 +195,7 @@ export default function Landing({ onStart }: Props) {
             filter: "drop-shadow(0 0 40px rgba(192,132,252,0.5))",
             letterSpacing: "-0.02em",
           }}>
-          AnonLink
-        </h1>
+          NovaChat
 
         {/* Subtitle */}
         <p className="text-base leading-relaxed mb-6" style={{ color: "rgba(255,255,255,0.55)", maxWidth: 380 }}>
@@ -285,7 +284,7 @@ export default function Landing({ onStart }: Props) {
       </div>
 
       <p className="absolute bottom-3 text-xs z-10" style={{ color: "rgba(255,255,255,0.12)" }}>
-        By using AnonLink you agree to be respectful. Abuse = ban.
+        By using NovaChat you agree to be respectful. Abuse = ban.
       </p>
     </div>
   );

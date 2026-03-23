@@ -291,7 +291,7 @@ export default function Chat({ profile, onStop }: Props) {
   const handleReport = () => {
     socket.emit("report", { userId: profile.userId });
     cleanup(); setShowVideo(false); setStatus("stopped"); setShowReport(false);
-    addMsg({ from: "stranger", type: "text", text: "✅ Reported. Thanks for keeping AnonLink safe." });
+    addMsg({ from: "stranger", type: "text", text: "✅ Reported. Thanks for keeping NovaChat safe." });
   };
 
   const isSystem = (text?: string) =>
@@ -352,7 +352,7 @@ export default function Chat({ profile, onStop }: Props) {
           <div className="w-8 h-8 rounded-xl flex items-center justify-center text-base shrink-0"
             style={{ background:"linear-gradient(135deg,#6366f1,#8b5cf6)" }}>👻</div>
           <div className="min-w-0">
-            <p className="text-white text-sm font-bold leading-tight">AnonLink</p>
+            <p className="text-white text-sm font-bold leading-tight">NovaChat</p>
             <p className="text-xs truncate" style={{ color:"#475569" }}>Anonymous Chat</p>
           </div>
           <div className="ml-auto flex items-center gap-1 shrink-0">
@@ -422,7 +422,7 @@ export default function Chat({ profile, onStop }: Props) {
               <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z" clipRule="evenodd" />
               </svg>
-              Next Stranger
+              Skip → Next Stranger
             </span>
             <span className="absolute inset-0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700"
               style={{ background:"linear-gradient(90deg,transparent,rgba(255,255,255,0.2),transparent)" }} />
