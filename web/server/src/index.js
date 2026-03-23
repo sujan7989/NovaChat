@@ -176,7 +176,7 @@ async function validateStartup() {
 const app = express();
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
-  cors: { origin: CLIENT_URL, methods: ["GET", "POST"], credentials: true },
+  cors: { origin: "*", methods: ["GET", "POST"], credentials: false },
   maxHttpBufferSize: MAX_HTTP_BUFFER_SIZE,
   pingTimeout: 60000,
   pingInterval: 25000,
@@ -208,12 +208,10 @@ app.use(helmet({
 }));
 
 app.use(cors({
-  origin: CLIENT_URL,
-  credentials: true,
+  origin: "*",
+  credentials: false,
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
-  exposedHeaders: ["X-Total-Count"],
-  maxAge: 86400, // 24 hours
 }));
 
 app.use(express.json({ 
