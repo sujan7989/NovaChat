@@ -18,7 +18,9 @@ const io = new Server(httpServer, {
   pingInterval: 25000,
 });
 
-app.use(cors({ origin: "*" }));
+// CORS must be first — ensures headers on ALL responses including errors
+app.use(cors({ origin: "*", methods: ["GET", "POST", "OPTIONS"] }));
+app.options("*", cors({ origin: "*" }));
 app.use(express.json({ limit: "1mb" }));
 
 app.get("/api/health", (req, res) => {
@@ -28,9 +30,12 @@ app.get("/api/health", (req, res) => {
 app.get("/api/stats", async (req, res) => {
   try {
     const s = getStore();
+    if (!s) {
+      return res.json({ total_matches: 0, active_chats: 0, online: getOnlineCount(), timestamp: Date.now() });
+    }
     const [total, active] = await Promise.all([
-      s.getStat("total_matches"),
-      s.getStat("active_chats"),
+      s.getStat("total_matches").catch(() => 0),
+      s.getStat("active_chats").catch(() => 0),
     ]);
     res.json({
       total_matches: total || 0,
@@ -40,7 +45,7 @@ app.get("/api/stats", async (req, res) => {
     });
   } catch (err) {
     logger.error(`Stats error: ${err.message}`);
-    res.status(500).json({ error: "Stats unavailable" });
+    res.json({ total_matches: 0, active_chats: 0, online: getOnlineCount(), timestamp: Date.now() });
   }
 });
 

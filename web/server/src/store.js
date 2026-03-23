@@ -3,52 +3,44 @@
  */
 import { REDIS_URL } from "./config.js";
 
-let store;
+let store = null;
 
 async function tryRedis() {
-  return new Promise(async (resolve) => {
-    try {
-      const Redis = (await import("ioredis")).default;
-      const client = new Redis(REDIS_URL, {
-        lazyConnect: true,
-        connectTimeout: 1500,
-        maxRetriesPerRequest: 0,
-        enableOfflineQueue: false,
-      });
+  try {
+    const Redis = (await import("ioredis")).default;
+    const client = new Redis(REDIS_URL, {
+      lazyConnect: true,
+      connectTimeout: 3000,
+      maxRetriesPerRequest: 1,
+      enableOfflineQueue: false,
+      retryStrategy: () => null, // don't retry
+    });
 
-      // Suppress ioredis unhandled error events during probe
-      client.on("error", () => {});
+    client.on("error", () => {}); // suppress during probe
 
-      const timer = setTimeout(() => {
-        client.disconnect();
-        resolve(false);
-      }, 2000);
-
-      try {
-        await client.connect();
-        await client.ping();
-        clearTimeout(timer);
-        client.disconnect();
-        resolve(true);
-      } catch {
-        clearTimeout(timer);
-        client.disconnect();
-        resolve(false);
-      }
-    } catch {
-      resolve(false);
-    }
-  });
+    await client.connect();
+    await client.ping();
+    await client.quit();
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export async function initStore() {
-  const redisAvailable = await tryRedis();
+  let redisAvailable = false;
+  try {
+    redisAvailable = await tryRedis();
+  } catch {
+    redisAvailable = false;
+  }
+
   if (redisAvailable) {
     store = await import("./redis.js");
     console.log("✅ Using Redis store");
   } else {
     store = await import("./memstore.js");
-    console.log("⚠️  Redis unavailable — using in-memory store (fine for local dev)");
+    console.log("⚠️  Redis unavailable — using in-memory store");
   }
 }
 
