@@ -427,22 +427,25 @@ export default function Chat({ profile, onStop }: Props) {
             <span className="absolute inset-0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700"
               style={{ background:"linear-gradient(90deg,transparent,rgba(255,255,255,0.2),transparent)" }} />
           </button>
-          <div className="grid grid-cols-3 gap-1.5">
+          <div className="grid grid-cols-3 gap-2">
             <button onClick={() => setShowReport(true)}
-              className="flex items-center justify-center gap-1 py-2 rounded-xl text-xs font-bold transition-all hover:scale-105"
-              style={{ background:"rgba(239,68,68,0.08)", border:"1px solid rgba(239,68,68,0.18)", color:"#f87171" }}>
-              🚩
+              className="flex flex-col items-center justify-center gap-1 py-3 rounded-2xl font-bold transition-all hover:scale-105 active:scale-95"
+              style={{ background:"rgba(239,68,68,0.12)", border:"1px solid rgba(239,68,68,0.3)", color:"#f87171" }}>
+              <span className="text-lg">🚩</span>
+              <span className="text-xs">Report</span>
             </button>
             <button onClick={handleStop}
-              className="flex items-center justify-center gap-1 py-2 rounded-xl text-xs font-bold transition-all hover:scale-105"
-              style={{ background:"rgba(100,116,139,0.08)", border:"1px solid rgba(100,116,139,0.18)", color:"#94a3b8" }}>
-              ⚡ Leave
+              className="flex flex-col items-center justify-center gap-1 py-3 rounded-2xl font-bold transition-all hover:scale-105 active:scale-95"
+              style={{ background:"rgba(100,116,139,0.12)", border:"1px solid rgba(100,116,139,0.3)", color:"#94a3b8" }}>
+              <span className="text-lg">⚡</span>
+              <span className="text-xs">Leave</span>
             </button>
             <button onClick={() => setSoundOn(p => { soundOnRef.current = !p; return !p; })}
-              className="flex items-center justify-center py-2 rounded-xl text-xs font-bold transition-all hover:scale-105"
-              style={{ background:"rgba(99,102,241,0.08)", border:"1px solid rgba(99,102,241,0.18)", color: soundOn ? "#818cf8" : "#475569" }}
+              className="flex flex-col items-center justify-center gap-1 py-3 rounded-2xl font-bold transition-all hover:scale-105 active:scale-95"
+              style={{ background:"rgba(99,102,241,0.12)", border:"1px solid rgba(99,102,241,0.3)", color: soundOn ? "#818cf8" : "#475569" }}
               title={soundOn ? "Mute sounds" : "Unmute sounds"}>
-              {soundOn ? "🔔" : "🔕"}
+              <span className="text-lg">{soundOn ? "🔔" : "🔕"}</span>
+              <span className="text-xs">{soundOn ? "Sound" : "Muted"}</span>
             </button>
           </div>
         </div>
