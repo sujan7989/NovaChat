@@ -206,13 +206,12 @@ export default function Setup({ onDone }: Props) {
           <>
             <p className="text-xs font-bold uppercase tracking-widest mb-2" style={{ color: "#64748b" }}>ABOUT YOU</p>
             <h1 className="text-4xl md:text-5xl font-black text-white mb-2 text-center">Who are you? 🙋</h1>
-            <p className="text-sm mb-8 text-center" style={{ color: "#64748b" }}>
-              Help us find the right match for you.{" "}
-              <button onClick={skip} className="font-semibold" style={{ color: "#a78bfa" }}>Skip.</button>
+            <p className="text-xs mb-8 text-center" style={{ color: "#64748b" }}>
+              Help us find the right match for you.
             </p>
-            <div className="w-full max-w-lg space-y-6">
+            <div className="w-full max-w-lg space-y-10">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-widest mb-3 text-center" style={{ color: "#94a3b8" }}>I am a</p>
+                <p className="text-sm font-black uppercase tracking-widest mb-4 text-center" style={{ color: "#e2e8f0", letterSpacing: "0.18em" }}>I AM A</p>
                 <div className="grid grid-cols-3 gap-3">
                   {GENDERS.map(g => (
                     <button key={g.value} onClick={() => setGender(g.value)}
@@ -226,7 +225,7 @@ export default function Setup({ onDone }: Props) {
                 </div>
               </div>
               <div>
-                <p className="text-xs font-semibold uppercase tracking-widest mb-3 text-center" style={{ color: "#94a3b8" }}>I want to chat with</p>
+                <p className="text-sm font-black uppercase tracking-widest mb-4 text-center" style={{ color: "#e2e8f0", letterSpacing: "0.18em" }}>I WANT TO CHAT WITH</p>
                 <div className="grid grid-cols-3 gap-3">
                   {PREFS.map(p => (
                     <button key={p.value} onClick={() => setPref(p.value)}
