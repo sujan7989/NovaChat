@@ -144,20 +144,30 @@ export default function Setup({ onDone }: Props) {
     return "Continue →";
   };
 
-  const skipLink = (
-    <button onClick={skip} className="font-semibold transition-colors hover:text-purple-300" style={{ color: "#a78bfa" }}>
-      Skip{step === 4 ? " to stay mysterious." : step === 3 ? " to match with anyone." : " to match anyone."}
-    </button>
-  );
-
-  const CTA = ({ onClick }: { onClick: () => void }) => (
-    <button onClick={onClick}
-      className="w-full py-4 rounded-2xl font-bold text-lg text-white grad-btn relative overflow-hidden group"
-      style={{ boxShadow: "0 8px 32px rgba(99,102,241,0.45)" }}>
-      <span className="relative z-10">{ctaText()}</span>
-      <span className="absolute inset-0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700"
-        style={{ background: "linear-gradient(90deg,transparent,rgba(255,255,255,0.2),transparent)" }} />
-    </button>
+  const CTA = ({ onClick, onBack }: { onClick: () => void; onBack?: () => void }) => (
+    <div className="w-full space-y-3">
+      <button onClick={onClick}
+        className="w-full py-4 rounded-2xl font-bold text-lg text-white grad-btn relative overflow-hidden group"
+        style={{ boxShadow: "0 8px 32px rgba(99,102,241,0.45)" }}>
+        <span className="relative z-10">{ctaText()}</span>
+        <span className="absolute inset-0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700"
+          style={{ background: "linear-gradient(90deg,transparent,rgba(255,255,255,0.2),transparent)" }} />
+      </button>
+      <div className="grid grid-cols-2 gap-3">
+        {onBack && (
+          <button onClick={onBack}
+            className="w-full py-3 rounded-2xl font-bold text-sm text-white transition-all hover:scale-105 active:scale-95"
+            style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.18)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.05)" }}>
+            ← Back
+          </button>
+        )}
+        <button onClick={skip}
+          className={`w-full py-3 rounded-2xl font-bold text-sm text-white transition-all hover:scale-105 active:scale-95 ${!onBack ? "col-span-2" : ""}`}
+          style={{ background: "rgba(99,102,241,0.15)", border: "1px solid rgba(139,92,246,0.4)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.05)" }}>
+          Skip →
+        </button>
+      </div>
+    </div>
   );
 
   return (
@@ -257,7 +267,7 @@ export default function Setup({ onDone }: Props) {
             <p className="text-xs font-bold uppercase tracking-widest mb-2" style={{ color: "#64748b" }}>YOUR INTERESTS</p>
             <h1 className="text-4xl md:text-5xl font-black text-white mb-2 text-center">What's your thing? ✨</h1>
             <p className="text-sm mb-6 text-center" style={{ color: "#64748b" }}>
-              Pick any — we'll match with people who share them.{" "}{skipLink}
+              Pick any — we'll match with people who share them.
             </p>
             <div className="w-full max-w-2xl grid grid-cols-2 sm:grid-cols-4 gap-3">
               {INTERESTS.map(item => {
@@ -273,9 +283,8 @@ export default function Setup({ onDone }: Props) {
                 );
               })}
             </div>
-            <div className="w-full max-w-2xl mt-6 space-y-2">
-              <CTA onClick={next} />
-              <button onClick={() => goTo(1)} className="w-full py-2 text-sm font-medium hover:text-slate-300 transition-colors" style={{ color: "#475569" }}>← Back</button>
+            <div className="w-full max-w-2xl mt-6">
+              <CTA onClick={next} onBack={() => goTo(1)} />
             </div>
           </>
         )}
@@ -286,7 +295,7 @@ export default function Setup({ onDone }: Props) {
             <p className="text-xs font-bold uppercase tracking-widest mb-2" style={{ color: "#64748b" }}>LANGUAGE PREFERENCE</p>
             <h1 className="text-4xl md:text-5xl font-black text-white mb-2 text-center">Speak my language 🗣️</h1>
             <p className="text-sm mb-6 text-center" style={{ color: "#64748b" }}>
-              Pick one to match with people who speak it.{" "}{skipLink}
+              Pick one to match with people who speak it.
             </p>
             <div className="w-full max-w-2xl grid grid-cols-2 sm:grid-cols-4 gap-3">
               {LANGUAGES.map(lang => {
@@ -302,9 +311,8 @@ export default function Setup({ onDone }: Props) {
                 );
               })}
             </div>
-            <div className="w-full max-w-2xl mt-6 space-y-2">
-              <CTA onClick={next} />
-              <button onClick={() => goTo(2)} className="w-full py-2 text-sm font-medium hover:text-slate-300 transition-colors" style={{ color: "#475569" }}>← Back</button>
+            <div className="w-full max-w-2xl mt-6">
+              <CTA onClick={next} onBack={() => goTo(2)} />
             </div>
           </>
         )}
@@ -315,7 +323,7 @@ export default function Setup({ onDone }: Props) {
             <p className="text-xs font-bold uppercase tracking-widest mb-2" style={{ color: "#64748b" }}>YOUR VIBE</p>
             <h1 className="text-4xl md:text-5xl font-black text-white mb-2 text-center">What's your mood? ✦</h1>
             <p className="text-sm mb-6 text-center" style={{ color: "#64748b" }}>
-              Let strangers know your energy.{" "}{skipLink}
+              Let strangers know your energy.
             </p>
             <div className="w-full max-w-2xl grid grid-cols-2 sm:grid-cols-4 gap-3">
               {VIBES.map(vibe => {
@@ -332,9 +340,8 @@ export default function Setup({ onDone }: Props) {
                 );
               })}
             </div>
-            <div className="w-full max-w-2xl mt-6 space-y-2">
-              <CTA onClick={next} />
-              <button onClick={() => goTo(3)} className="w-full py-2 text-sm font-medium hover:text-slate-300 transition-colors" style={{ color: "#475569" }}>← Back</button>
+            <div className="w-full max-w-2xl mt-6">
+              <CTA onClick={next} onBack={() => goTo(3)} />
             </div>
           </>
         )}
