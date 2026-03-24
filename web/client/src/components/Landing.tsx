@@ -215,7 +215,7 @@ export default function Landing({ onStart }: Props) {
         </h1>
 
         <p
-          className="text-base leading-relaxed mb-6"
+          className="text-base leading-relaxed mb-8"
           style={{ color: "rgba(255,255,255,0.55)", maxWidth: 380 }}
         >
           Modern anonymous chat with strangers.
@@ -223,7 +223,7 @@ export default function Landing({ onStart }: Props) {
           No account. No name. Just connections.
         </p>
 
-        <div className="flex flex-wrap justify-center gap-2 mb-5">
+        <div className="flex flex-wrap justify-center gap-2 mb-8">
           {features.map((f) => (
             <div
               key={f.label}
@@ -280,7 +280,7 @@ export default function Landing({ onStart }: Props) {
           </button>
         </div>
 
-        <div className="flex items-center gap-4 mt-6 text-xs font-semibold flex-wrap justify-center">
+        <div className="flex items-center gap-4 mt-8 text-xs font-semibold flex-wrap justify-center">
           <span className="flex items-center gap-1.5" style={{ color: "rgba(255,255,255,0.4)" }}>
             <span>🔒</span><span>100% Anonymous</span>
           </span>
