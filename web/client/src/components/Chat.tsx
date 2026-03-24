@@ -587,7 +587,8 @@ export default function Chat({ profile, onStop }: Props) {
                   <div>
                     <p className="text-xs font-semibold mb-1" style={{ color:"#818cf8" }}>Stranger</p>
                     <div className="px-4 py-2.5 rounded-2xl text-sm leading-relaxed"
-                      style={{ background:"rgba(99,102,241,0.15)", color:"#e2e8f0", borderBottomLeftRadius:6, border:"1px solid rgba(99,102,241,0.2)" }}>
+                      style={{ background:"rgba(99,102,241,0.15)", color:"#e2e8f0", borderBottomLeftRadius:6, border:"1px solid rgba(99,102,241,0.2)" }}
+                      dir="ltr">
                       {msg.text}
                     </div>
                     <p className="msg-time text-xs mt-1" style={{ color:"#334155" }}>{formatTime(msg.timestamp)}</p>
@@ -599,7 +600,8 @@ export default function Chat({ profile, onStop }: Props) {
                     <span className="text-xs font-semibold" style={{ color:"#818cf8" }}>You</span>
                   </div>
                   <div className="px-4 py-2.5 rounded-2xl text-sm leading-relaxed"
-                    style={{ background:"linear-gradient(135deg,#6366f1,#8b5cf6)", color:"white", borderBottomRightRadius:6, boxShadow:"0 4px 16px rgba(99,102,241,0.35)" }}>
+                    style={{ background:"linear-gradient(135deg,#6366f1,#8b5cf6)", color:"white", borderBottomRightRadius:6, boxShadow:"0 4px 16px rgba(99,102,241,0.35)" }}
+                    dir="ltr">
                     {msg.text}
                   </div>
                   <p className="msg-time text-xs mt-1 text-right" style={{ color:"#334155" }}>{formatTime(msg.timestamp)}</p>
@@ -657,6 +659,7 @@ export default function Chat({ profile, onStop }: Props) {
                 placeholder={status === "chatting" ? "Type a message..." : status === "searching" ? "Waiting for match..." : "Chat ended"}
                 disabled={status !== "chatting"}
                 maxLength={500}
+                dir="ltr"
                 className="w-full px-4 py-2.5 rounded-2xl text-sm text-white outline-none transition-all"
                 style={{
                   background:"rgba(255,255,255,0.05)",
