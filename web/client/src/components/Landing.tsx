@@ -160,7 +160,7 @@ export default function Landing({ onStart }: Props) {
         }`}
       >
         <div
-          className="flex items-center gap-2.5 px-5 py-2 rounded-full mb-7"
+          className="flex items-center gap-2.5 px-5 py-2 rounded-full mb-3"
           style={{
             background: "rgba(255,255,255,0.08)",
             border: "1px solid rgba(255,255,255,0.15)",
@@ -242,10 +242,6 @@ export default function Landing({ onStart }: Props) {
           ))}
         </div>
 
-        <p className="text-sm font-semibold mb-6" style={{ color: "rgba(255,255,255,0.5)" }}>
-          🔥 {displayOnline > 0 ? `+${displayOnline.toLocaleString()}` : "..."} people online
-        </p>
-
         <div className="relative w-full max-w-sm mb-5">
           <div
             className="absolute inset-0 rounded-full"
@@ -284,25 +280,18 @@ export default function Landing({ onStart }: Props) {
           </button>
         </div>
 
-        <div className="flex items-center gap-5 mt-6 text-sm font-semibold">
-          {stats.total_matches === 0 && stats.active_chats === 0 ? (
-            <>
-              <div className="h-3.5 w-24 rounded-full animate-pulse" style={{ background: "rgba(192,132,252,0.15)" }} />
-              <div className="h-3.5 w-20 rounded-full animate-pulse" style={{ background: "rgba(192,132,252,0.15)" }} />
-            </>
-          ) : (
-            <>
-              <span className="flex items-center gap-1.5" style={{ color: "rgba(255,255,255,0.45)" }}>
-                <span>🔗</span>
-                <span>{stats.total_matches.toLocaleString()} matches</span>
-              </span>
-              <span className="w-px h-3.5" style={{ background: "rgba(255,255,255,0.15)" }} />
-              <span className="flex items-center gap-1.5" style={{ color: "rgba(255,255,255,0.45)" }}>
-                <span className="w-2 h-2 rounded-full bg-pink-400 animate-pulse" />
-                <span>{stats.active_chats} chats</span>
-              </span>
-            </>
-          )}
+        <div className="flex items-center gap-4 mt-6 text-xs font-semibold flex-wrap justify-center">
+          <span className="flex items-center gap-1.5" style={{ color: "rgba(255,255,255,0.4)" }}>
+            <span>🔒</span><span>100% Anonymous</span>
+          </span>
+          <span className="w-px h-3" style={{ background: "rgba(255,255,255,0.12)" }} />
+          <span className="flex items-center gap-1.5" style={{ color: "rgba(255,255,255,0.4)" }}>
+            <span>⚡</span><span>No signup needed</span>
+          </span>
+          <span className="w-px h-3" style={{ background: "rgba(255,255,255,0.12)" }} />
+          <span className="flex items-center gap-1.5" style={{ color: "rgba(255,255,255,0.4)" }}>
+            <span>🌍</span><span>Meet the world</span>
+          </span>
         </div>
 
         <div className="mt-5 flex items-center gap-2" style={{ opacity: 0.3 }}>
