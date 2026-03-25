@@ -175,7 +175,7 @@ export default function Setup({ onDone }: Props) {
       <SpaceBg />
 
       {/* Step progress indicator */}
-      <div className="relative z-20 px-6 pt-5 flex justify-center">
+      <div className="relative z-20 px-4 pt-4 flex justify-center shrink-0">
         <div className="flex items-center gap-2">
           {STEP_LABELS.map((label, i) => {
             const n = i + 1;
@@ -200,7 +200,7 @@ export default function Setup({ onDone }: Props) {
                   </span>
                 </div>
                 {i < 3 && (
-                  <div className="w-10 h-px mb-4 transition-all duration-500"
+                  <div className="w-6 sm:w-10 h-px mb-4 transition-all duration-500"
                     style={{ background: done ? "linear-gradient(90deg,#22c55e,#16a34a)" : "rgba(255,255,255,0.08)" }} />
                 )}
               </div>
@@ -209,13 +209,13 @@ export default function Setup({ onDone }: Props) {
         </div>
       </div>
 
-      <div key={animKey} className="relative z-10 flex flex-col items-center justify-center flex-1 px-6 py-4 step-enter overflow-y-auto">
+      <div key={animKey} className="relative z-10 flex flex-col items-center justify-start flex-1 px-4 py-4 step-enter overflow-y-auto" style={{ WebkitOverflowScrolling: "touch" }}>
 
         {/* STEP 1 */}
         {step === 1 && (
           <>
             <p className="text-xs font-bold uppercase tracking-widest mb-2" style={{ color: "#64748b" }}>ABOUT YOU</p>
-            <h1 className="text-4xl md:text-5xl font-black text-white mb-2 text-center">Who are you? 🙋</h1>
+            <h1 className="text-3xl sm:text-5xl font-black text-white mb-2 text-center">Who are you? 🙋</h1>
             <p className="text-xs mb-8 text-center" style={{ color: "#64748b" }}>
               Help us find the right match for you.
             </p>
@@ -265,7 +265,7 @@ export default function Setup({ onDone }: Props) {
         {step === 2 && (
           <>
             <p className="text-xs font-bold uppercase tracking-widest mb-2" style={{ color: "#64748b" }}>YOUR INTERESTS</p>
-            <h1 className="text-4xl md:text-5xl font-black text-white mb-2 text-center">What's your thing? ✨</h1>
+            <h1 className="text-3xl sm:text-5xl font-black text-white mb-2 text-center">What's your thing? ✨</h1>
             <p className="text-sm mb-6 text-center" style={{ color: "#64748b" }}>
               Pick any — we'll match with people who share them.
             </p>
@@ -293,7 +293,7 @@ export default function Setup({ onDone }: Props) {
         {step === 3 && (
           <>
             <p className="text-xs font-bold uppercase tracking-widest mb-2" style={{ color: "#64748b" }}>LANGUAGE PREFERENCE</p>
-            <h1 className="text-4xl md:text-5xl font-black text-white mb-2 text-center">Speak my language 🗣️</h1>
+            <h1 className="text-3xl sm:text-5xl font-black text-white mb-2 text-center">Speak my language 🗣️</h1>
             <p className="text-sm mb-6 text-center" style={{ color: "#64748b" }}>
               Pick one to match with people who speak it.
             </p>
@@ -321,7 +321,7 @@ export default function Setup({ onDone }: Props) {
         {step === 4 && (
           <>
             <p className="text-xs font-bold uppercase tracking-widest mb-2" style={{ color: "#64748b" }}>YOUR VIBE</p>
-            <h1 className="text-4xl md:text-5xl font-black text-white mb-2 text-center">What's your mood? ✦</h1>
+            <h1 className="text-3xl sm:text-5xl font-black text-white mb-2 text-center">What's your mood? ✦</h1>
             <p className="text-sm mb-6 text-center" style={{ color: "#64748b" }}>
               Let strangers know your energy.
             </p>

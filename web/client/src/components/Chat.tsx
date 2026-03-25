@@ -628,7 +628,7 @@ export default function Chat({ profile, onStop }: Props) {
         </div>
 
         {/* Input bar */}
-        <div className="shrink-0 px-4 py-3 relative z-10"
+        <div className="shrink-0 px-4 py-3 relative z-10 mobile-safe-bottom"
           style={{ borderTop:`1px solid ${BORDER}`, background:"rgba(255,255,255,0.01)" }}>
           {showEmoji && (
             <div className="mb-2 p-2 rounded-2xl flex flex-wrap gap-1.5"

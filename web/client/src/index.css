@@ -7,6 +7,8 @@ html, body, #root {
   width: 100%;
   overflow: hidden;
   background: #05050e;
+  /* Fix mobile viewport height (address bar issues) */
+  height: 100dvh;
 }
 
 body {
@@ -186,6 +188,19 @@ body {
 .neon-card.selected {
   border-color: rgba(139,92,246,0.7);
   box-shadow: 0 0 32px rgba(139,92,246,0.35), inset 0 1px 0 rgba(255,255,255,0.1);
+}
+
+/* Mobile safe area for input bar */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  .mobile-safe-bottom {
+    padding-bottom: calc(0.75rem + env(safe-area-inset-bottom));
+  }
+}
+
+/* Prevent text size adjustment on mobile */
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 /* Scan line effect */

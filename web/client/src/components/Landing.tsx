@@ -151,7 +151,7 @@ export default function Landing({ onStart }: Props) {
       <DeepSpaceBg />
 
       <div
-        className={`relative z-10 flex flex-col items-center text-center px-6 max-w-xl w-full transition-all duration-500 ease-in-out ${
+        className={`relative z-10 flex flex-col items-center text-center px-5 max-w-xl w-full transition-all duration-500 ease-in-out ${
           visible && !leaving
             ? "opacity-100 translate-y-0"
             : leaving
@@ -160,7 +160,7 @@ export default function Landing({ onStart }: Props) {
         }`}
       >
         <div
-          className="flex items-center gap-2.5 px-5 py-2 rounded-full mb-3"
+          className="flex items-center gap-2 px-4 py-1.5 rounded-full mb-3"
           style={{
             background: "rgba(255,255,255,0.08)",
             border: "1px solid rgba(255,255,255,0.15)",
@@ -169,19 +169,19 @@ export default function Landing({ onStart }: Props) {
           }}
         >
           <span
-            className="w-2.5 h-2.5 rounded-full bg-green-400 animate-pulse shrink-0"
+            className="w-2 h-2 rounded-full bg-green-400 animate-pulse shrink-0"
             style={{ boxShadow: "0 0 8px rgba(74,222,128,0.8)" }}
           />
-          <span className="text-white font-semibold text-sm">
+          <span className="text-white font-semibold text-xs sm:text-sm">
             {displayOnline.toLocaleString()} people online now
           </span>
         </div>
 
-        <div className="relative mb-4 select-none">
+        <div className="relative mb-2 select-none">
           <div
             className="absolute rounded-full"
             style={{
-              inset: "-50px",
+              inset: "-30px",
               background: "radial-gradient(circle,rgba(180,60,255,0.5) 0%,rgba(240,60,180,0.2) 45%,transparent 70%)",
               filter: "blur(30px)",
               animation: "glowPulse 3s ease-in-out infinite",
@@ -190,7 +190,7 @@ export default function Landing({ onStart }: Props) {
           <div
             className="relative z-10 animate-float"
             style={{
-              fontSize: 110,
+              fontSize: "clamp(64px, 18vw, 110px)",
               lineHeight: 1,
               filter: "drop-shadow(0 0 40px rgba(200,80,255,0.9)) drop-shadow(0 0 80px rgba(160,40,220,0.6)) drop-shadow(0 24px 48px rgba(0,0,0,0.7))",
             }}
@@ -200,9 +200,9 @@ export default function Landing({ onStart }: Props) {
         </div>
 
         <h1
-          className="font-black tracking-tight mb-3 leading-none"
+          className="font-black tracking-tight mb-2 leading-none"
           style={{
-            fontSize: "clamp(3.8rem,10vw,6.5rem)",
+            fontSize: "clamp(2.8rem,10vw,6.5rem)",
             background: "linear-gradient(135deg,#a855f7 0%,#c084fc 25%,#e879f9 55%,#f472b6 80%,#fb7185 100%)",
             WebkitBackgroundClip: "text",
             WebkitTextFillColor: "transparent",
@@ -215,25 +215,24 @@ export default function Landing({ onStart }: Props) {
         </h1>
 
         <p
-          className="text-base leading-relaxed mb-8"
-          style={{ color: "rgba(255,255,255,0.55)", maxWidth: 380 }}
+          className="text-sm leading-relaxed mb-5"
+          style={{ color: "rgba(255,255,255,0.55)", maxWidth: 340 }}
         >
           Modern anonymous chat with strangers.
           <br />
           No account. No name. Just connections.
         </p>
 
-        <div className="flex flex-wrap justify-center gap-2 mb-8">
+        <div className="flex flex-wrap justify-center gap-1.5 mb-5">
           {features.map((f) => (
             <div
               key={f.label}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold"
+              className="flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold"
               style={{
                 background: "rgba(255,255,255,0.07)",
                 border: "1px solid rgba(255,255,255,0.12)",
                 color: "rgba(255,255,255,0.75)",
                 backdropFilter: "blur(8px)",
-                boxShadow: "inset 0 1px 0 rgba(255,255,255,0.08)",
               }}
             >
               <span>{f.icon}</span>
@@ -242,7 +241,7 @@ export default function Landing({ onStart }: Props) {
           ))}
         </div>
 
-        <div className="relative w-full max-w-sm mb-5">
+        <div className="relative w-full max-w-sm mb-4">
           <div
             className="absolute inset-0 rounded-full"
             style={{
@@ -252,22 +251,12 @@ export default function Landing({ onStart }: Props) {
               transform: "scaleY(0.55) translateY(14px)",
             }}
           />
-          <div
-            className="absolute inset-0 rounded-full"
-            style={{
-              background: "linear-gradient(135deg,#a855f7,#ec4899)",
-              padding: 2,
-              WebkitMask: "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",
-              WebkitMaskComposite: "xor",
-              maskComposite: "exclude",
-            }}
-          />
           <button
             onClick={handleStart}
             className="relative w-full py-4 rounded-full font-black text-lg text-white overflow-hidden group transition-all hover:scale-[1.03] active:scale-[0.98]"
             style={{
               background: "linear-gradient(135deg,#6d28d9 0%,#9333ea 40%,#be185d 100%)",
-              boxShadow: "0 0 0 1.5px rgba(168,85,247,0.6), 0 0 0 3px rgba(168,85,247,0.2), 0 8px 40px rgba(124,58,237,0.6), 0 0 80px rgba(219,39,119,0.25)",
+              boxShadow: "0 0 0 1.5px rgba(168,85,247,0.6), 0 8px 40px rgba(124,58,237,0.6)",
             }}
           >
             <span className="relative z-10 flex items-center justify-center gap-2">
@@ -280,26 +269,26 @@ export default function Landing({ onStart }: Props) {
           </button>
         </div>
 
-        <div className="flex items-center gap-4 mt-8 text-xs font-semibold flex-wrap justify-center">
-          <span className="flex items-center gap-1.5" style={{ color: "rgba(255,255,255,0.4)" }}>
+        <div className="flex items-center gap-3 text-xs font-semibold flex-wrap justify-center">
+          <span className="flex items-center gap-1" style={{ color: "rgba(255,255,255,0.4)" }}>
             <span>🔒</span><span>100% Anonymous</span>
           </span>
           <span className="w-px h-3" style={{ background: "rgba(255,255,255,0.12)" }} />
-          <span className="flex items-center gap-1.5" style={{ color: "rgba(255,255,255,0.4)" }}>
+          <span className="flex items-center gap-1" style={{ color: "rgba(255,255,255,0.4)" }}>
             <span>⚡</span><span>No signup needed</span>
           </span>
           <span className="w-px h-3" style={{ background: "rgba(255,255,255,0.12)" }} />
-          <span className="flex items-center gap-1.5" style={{ color: "rgba(255,255,255,0.4)" }}>
+          <span className="flex items-center gap-1" style={{ color: "rgba(255,255,255,0.4)" }}>
             <span>🌍</span><span>Meet the world</span>
           </span>
         </div>
 
-        <div className="mt-5 flex items-center gap-2" style={{ opacity: 0.3 }}>
-          <div style={{ height: 1, width: 32, background: "rgba(255,255,255,0.2)" }} />
-          <span style={{ fontSize: 11, color: "rgba(255,255,255,0.6)", letterSpacing: "0.12em", fontWeight: 500 }}>
+        <div className="mt-4 flex items-center gap-2" style={{ opacity: 0.3 }}>
+          <div style={{ height: 1, width: 28, background: "rgba(255,255,255,0.2)" }} />
+          <span style={{ fontSize: 10, color: "rgba(255,255,255,0.6)", letterSpacing: "0.12em", fontWeight: 500 }}>
             or press enter
           </span>
-          <div style={{ height: 1, width: 32, background: "rgba(255,255,255,0.2)" }} />
+          <div style={{ height: 1, width: 28, background: "rgba(255,255,255,0.2)" }} />
         </div>
       </div>
 
