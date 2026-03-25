@@ -144,7 +144,7 @@ export default function Setup({ onDone }: Props) {
     return "Continue →";
   };
 
-  const CTA = ({ onClick, onBack }: { onClick: () => void; onBack?: () => void }) => (
+  const renderCTA = (onClick: () => void, onBack?: () => void) => (
     <div className="w-full space-y-3">
       <button onClick={onClick}
         className="w-full py-4 rounded-2xl font-bold text-lg text-white grad-btn relative overflow-hidden group"
@@ -153,17 +153,17 @@ export default function Setup({ onDone }: Props) {
         <span className="absolute inset-0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700"
           style={{ background: "linear-gradient(90deg,transparent,rgba(255,255,255,0.2),transparent)" }} />
       </button>
-      <div className="grid grid-cols-2 gap-3">
+      <div className={`grid gap-3 ${onBack ? "grid-cols-2" : "grid-cols-1"}`}>
         {onBack && (
           <button onClick={onBack}
             className="w-full py-3 rounded-2xl font-bold text-sm text-white transition-all hover:scale-105 active:scale-95"
-            style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.18)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.05)" }}>
+            style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.18)" }}>
             ← Back
           </button>
         )}
         <button onClick={skip}
-          className={`w-full py-3 rounded-2xl font-bold text-sm text-white transition-all hover:scale-105 active:scale-95 ${!onBack ? "col-span-2" : ""}`}
-          style={{ background: "rgba(99,102,241,0.15)", border: "1px solid rgba(139,92,246,0.4)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.05)" }}>
+          className="w-full py-3 rounded-2xl font-bold text-sm text-white transition-all hover:scale-105 active:scale-95"
+          style={{ background: "rgba(99,102,241,0.15)", border: "1px solid rgba(139,92,246,0.4)" }}>
           Skip →
         </button>
       </div>
@@ -284,7 +284,7 @@ export default function Setup({ onDone }: Props) {
               })}
             </div>
             <div className="w-full max-w-2xl mt-6">
-              <CTA onClick={next} onBack={() => goTo(1)} />
+              {renderCTA(next, () => goTo(1))}
             </div>
           </>
         )}
