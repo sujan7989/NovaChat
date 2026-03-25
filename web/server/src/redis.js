@@ -32,8 +32,11 @@ export async function enqueue(userId, gender, pref, interests, languages, vibes)
     interests: interests || [],
     languages: languages || [],
     vibes:     vibes     || [],
+    ts:        Date.now(), // timestamp for stale cleanup
   });
   await redis.rpush("queue:all", data);
+  // Auto-expire queue entries after 5 minutes to prevent ghost users
+  await redis.expire("queue:all", 300);
 }
 
 function hasOverlap(a, b) {
@@ -119,6 +122,11 @@ export async function incrementStat(key) {
 export async function getStat(key) {
   const val = await redis.get(`stat:${key}`);
   return parseInt(val) || 0;
+}
+
+export async function decrementStat(key) {
+  const cur = await redis.get(`stat:${key}`);
+  if (cur && parseInt(cur) > 0) await redis.decr(`stat:${key}`);
 }
 
 export async function ping() {

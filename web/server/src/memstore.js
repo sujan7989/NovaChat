@@ -39,6 +39,7 @@ export async function enqueue(userId, gender, pref, interests, languages, vibes)
     interests: interests || [],
     languages: languages || [],
     vibes:     vibes     || [],
+    ts:        Date.now(),
   });
 }
 
@@ -59,6 +60,12 @@ export async function dequeueMatch(userId, myGender, myPref, myInterests, myLang
   const myLangs  = myLanguages || [];
   const myInts   = myInterests || [];
   const myVbs    = myVibes     || [];
+
+  // Remove stale entries (older than 5 minutes)
+  const now = Date.now();
+  for (let i = queue.length - 1; i >= 0; i--) {
+    if (queue[i].ts && now - queue[i].ts > 300000) queue.splice(i, 1);
+  }
 
   // Score each candidate — higher = better match
   let bestIdx   = -1;
@@ -129,4 +136,14 @@ export async function incrementStat(key) {
 
 export async function getStat(key) {
   return stats.get(key) || 0;
+}
+
+export async function decrementStat(key) {
+  const cur = stats.get(key) || 0;
+  if (cur > 0) stats.set(key, cur - 1);
+}
+
+export async function ping() {
+  // In-memory store is always available
+  return true;
 }

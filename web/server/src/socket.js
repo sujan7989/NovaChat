@@ -277,6 +277,7 @@ export function initSocket(io) {
         if (partnerId) {
           const ps = userToSocket.get(partnerId);
           if (ps) io.to(ps).emit("stranger_left");
+          await getStore().decrementStat("active_chats").catch(() => {});
           logger.info(`User ${userId} skipped, notified ${partnerId}`);
         }
 
@@ -310,6 +311,7 @@ export function initSocket(io) {
         if (partnerId) {
           const ps = userToSocket.get(partnerId);
           if (ps) io.to(ps).emit("stranger_left");
+          await getStore().decrementStat("active_chats").catch(() => {});
           logger.info(`User ${userId} stopped chat with ${partnerId}`);
         }
         // Remove user from online chatters when they stop chatting
@@ -339,6 +341,7 @@ export function initSocket(io) {
 
         await disconnectUser(userId);
         const count = await s.addReport(partnerId);
+        await s.decrementStat("active_chats").catch(() => {});
         socket.emit("reported_ok");
 
         const ps = userToSocket.get(partnerId);
@@ -367,6 +370,7 @@ export function initSocket(io) {
           if (partnerId) {
             const ps = userToSocket.get(partnerId);
             if (ps) io.to(ps).emit("stranger_left");
+            await getStore().decrementStat("active_chats").catch(() => {});
           }
         } catch (err) {
           logger.error(`Error during disconnect cleanup: ${err.message}`);
