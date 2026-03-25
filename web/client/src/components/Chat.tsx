@@ -196,6 +196,13 @@ export default function Chat({ profile, onStop }: Props) {
   const [chatKey, setChatKey] = useState(0);
   const [reconnecting, setReconnecting] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  // Detect if desktop (>=768px) — sidebar always visible on desktop
+  const [isDesktop, setIsDesktop] = useState(() => window.innerWidth >= 768);
+  useEffect(() => {
+    const handler = () => setIsDesktop(window.innerWidth >= 768);
+    window.addEventListener("resize", handler);
+    return () => window.removeEventListener("resize", handler);
+  }, []);
   const bottomRef = useRef<HTMLDivElement>(null);
   const typingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -335,16 +342,25 @@ export default function Chat({ profile, onStop }: Props) {
       {showMatchFlash && <MatchFlash onDone={() => setShowMatchFlash(false)} />}
 
       {/* Sidebar overlay — mobile only */}
-      {sidebarOpen && (
-        <div className="fixed inset-0 z-30 md:hidden" style={{ background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)" }}
+      {sidebarOpen && !isDesktop && (
+        <div className="fixed inset-0 z-30" style={{ background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)" }}
           onClick={() => setSidebarOpen(false)} />
       )}
 
       {/* ── LEFT PANEL ── */}
-      <div className={`shrink-0 flex flex-col relative overflow-hidden transition-transform duration-300
-        fixed md:relative inset-y-0 left-0 z-40 md:z-auto md:translate-x-0
-        ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}
-        style={{ width: 256, background: PANEL_BG, borderRight: `1px solid ${BORDER}` }}>
+      <div className="shrink-0 flex flex-col relative overflow-hidden transition-transform duration-300"
+        style={{
+          width: 256,
+          background: PANEL_BG,
+          borderRight: `1px solid ${BORDER}`,
+          // Desktop: always visible inline. Mobile: fixed overlay sliding in from left
+          position: isDesktop ? "relative" : "fixed",
+          top: isDesktop ? undefined : 0,
+          bottom: isDesktop ? undefined : 0,
+          left: 0,
+          zIndex: isDesktop ? "auto" : 40,
+          transform: isDesktop ? "none" : sidebarOpen ? "translateX(0)" : "translateX(-100%)",
+        }}>
         <StarField count={35} offset={0} />
 
         {/* Brand header */}
@@ -475,13 +491,15 @@ export default function Chat({ profile, onStop }: Props) {
         <div className="shrink-0 flex items-center gap-3 px-4 py-3 relative z-10"
           style={{ background:"rgba(255,255,255,0.015)", borderBottom:`1px solid ${BORDER}` }}>
           {/* Menu toggle — mobile only */}
-          <button className="md:hidden w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-all hover:scale-110"
+          {!isDesktop && (
+          <button className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-all hover:scale-110"
             style={{ background:"rgba(99,102,241,0.15)", border:"1px solid rgba(99,102,241,0.35)" }}
             onClick={() => setSidebarOpen(p => !p)}>
             <svg className="w-5 h-5" style={{ color:"#818cf8" }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
             </svg>
           </button>
+          )}
           <div className="w-10 h-10 rounded-full flex items-center justify-center text-lg relative shrink-0"
             style={{ background:"linear-gradient(135deg,rgba(99,102,241,0.3),rgba(139,92,246,0.3))", border:"1px solid rgba(99,102,241,0.4)" }}>
             👤
