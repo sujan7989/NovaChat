@@ -312,7 +312,7 @@ export default function Setup({ onDone }: Props) {
               })}
             </div>
             <div className="w-full max-w-2xl mt-6">
-              <CTA onClick={next} onBack={() => goTo(2)} />
+              {renderCTA(next, () => goTo(2))}
             </div>
           </>
         )}
@@ -341,7 +341,7 @@ export default function Setup({ onDone }: Props) {
               })}
             </div>
             <div className="w-full max-w-2xl mt-6">
-              <CTA onClick={next} onBack={() => goTo(3)} />
+              {renderCTA(next, () => goTo(3))}
             </div>
           </>
         )}
