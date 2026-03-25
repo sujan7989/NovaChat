@@ -334,15 +334,15 @@ export default function Chat({ profile, onStop }: Props) {
       {/* Match flash overlay */}
       {showMatchFlash && <MatchFlash onDone={() => setShowMatchFlash(false)} />}
 
-      {/* Mobile sidebar overlay */}
+      {/* Sidebar overlay — mobile only */}
       {sidebarOpen && (
-        <div className="fixed inset-0 z-30" style={{ background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)" }}
+        <div className="fixed inset-0 z-30 md:hidden" style={{ background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)" }}
           onClick={() => setSidebarOpen(false)} />
       )}
 
       {/* ── LEFT PANEL ── */}
       <div className={`shrink-0 flex flex-col relative overflow-hidden transition-transform duration-300
-        fixed inset-y-0 left-0 z-40
+        fixed md:relative inset-y-0 left-0 z-40 md:z-auto md:translate-x-0
         ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}
         style={{ width: 256, background: PANEL_BG, borderRight: `1px solid ${BORDER}` }}>
         <StarField count={35} offset={0} />
@@ -474,8 +474,8 @@ export default function Chat({ profile, onStop }: Props) {
         {/* Chat header */}
         <div className="shrink-0 flex items-center gap-3 px-4 py-3 relative z-10"
           style={{ background:"rgba(255,255,255,0.015)", borderBottom:`1px solid ${BORDER}` }}>
-          {/* Menu toggle — always visible, opens sidebar */}
-          <button className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-all hover:scale-110"
+          {/* Menu toggle — mobile only */}
+          <button className="md:hidden w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-all hover:scale-110"
             style={{ background:"rgba(99,102,241,0.15)", border:"1px solid rgba(99,102,241,0.35)" }}
             onClick={() => setSidebarOpen(p => !p)}>
             <svg className="w-5 h-5" style={{ color:"#818cf8" }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
