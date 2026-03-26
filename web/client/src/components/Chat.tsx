@@ -196,6 +196,8 @@ export default function Chat({ profile, onStop }: Props) {
   const [chatKey, setChatKey] = useState(0);
   const [reconnecting, setReconnecting] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [showRating, setShowRating] = useState(false);
+  const [ratingDone, setRatingDone] = useState(false);
   // Detect if desktop (>=768px) — sidebar always visible on desktop
   const [isDesktop, setIsDesktop] = useState(() => window.innerWidth >= 768);
   useEffect(() => {
@@ -231,13 +233,24 @@ export default function Chat({ profile, onStop }: Props) {
     socket.on("message", ({ text }: { text: string }) => { setStrangerTyping(false); addMsg({ from: "stranger", type: "text", text }); });
     socket.on("image", ({ dataUrl, caption }: { dataUrl: string; caption?: string }) => addMsg({ from: "stranger", type: "image", dataUrl, caption }));
     socket.on("typing", ({ isTyping }: { isTyping: boolean }) => setStrangerTyping(isTyping));
-    socket.on("stranger_left", () => { setStatus("stopped"); cleanup(); setShowVideo(false); addMsg({ from: "stranger", type: "text", text: "👻 Stranger has left the chat." }); });
+    socket.on("stranger_left", () => { setStatus("stopped"); cleanup(); setShowVideo(false); addMsg({ from: "stranger", type: "text", text: "👻 Stranger has left the chat." }); setShowRating(true); });
     socket.on("stopped", () => { setStatus("stopped"); cleanup(); setShowVideo(false); });
     socket.on("banned", () => addMsg({ from: "stranger", type: "text", text: "⚠️ You've been banned for violations." }));
     socket.on("webrtc:offer", ({ offer }: { offer: RTCSessionDescriptionInit }) => { handleOffer(offer); setShowVideo(true); });
     socket.on("webrtc:answer", ({ answer }: { answer: RTCSessionDescriptionInit }) => handleAnswer(answer));
     socket.on("webrtc:ice", ({ candidate }: { candidate: RTCIceCandidateInit }) => handleIce(candidate));
     socket.on("webrtc:end", () => { cleanup(); setShowVideo(false); });
+    socket.on("message_delivered", ({ text }: { text: string }) => {
+      setMessages(prev => {
+        const idx = [...prev].reverse().findIndex(m => m.from === "me" && m.text === text);
+        if (idx === -1) return prev;
+        const realIdx = prev.length - 1 - idx;
+        return prev.map((m, i) => i === realIdx ? { ...m, delivered: true } : m);
+      });
+    });
+    socket.on("moderation_warning", ({ msg }: { msg: string }) => {
+      showToast(msg, "warn");
+    });
     socket.connect();
     socket.on("disconnect", () => { setReconnecting(true); });
     socket.on("connect", () => { setReconnecting(prev => { if (prev) showToast("Reconnected to server", "success"); return false; }); });
@@ -289,6 +302,7 @@ export default function Chat({ profile, onStop }: Props) {
 
   const handleNext = () => {
     cleanup(); setShowVideo(false); setShowEmoji(false);
+    setShowRating(false); setRatingDone(false);
     socket.emit("next", { ...profile, languages: profile.languages, vibes: profile.vibes });
     setStatus("searching"); setMessages([]);
   };
@@ -622,7 +636,13 @@ export default function Chat({ profile, onStop }: Props) {
                     dir="ltr">
                     {msg.text}
                   </div>
-                  <p className="msg-time text-xs mt-1 text-right" style={{ color:"#334155" }}>{formatTime(msg.timestamp)}</p>
+                  <p className="msg-time text-xs mt-1 text-right flex items-center justify-end gap-1" style={{ color:"#334155" }}>
+                    {formatTime(msg.timestamp)}
+                    {msg.delivered
+                      ? <span style={{ color:"#6366f1" }}>✓✓</span>
+                      : <span style={{ color:"#334155" }}>✓</span>
+                    }
+                  </p>
                 </div>
               )}
             </div>
@@ -725,6 +745,37 @@ export default function Chat({ profile, onStop }: Props) {
         <VideoCall localStream={localStream} remoteStream={remoteStream} callError={callError}
           userId={profile.userId}
           onEnd={() => { endCall(); setShowVideo(false); }} />
+      )}
+
+      {/* Rating modal */}
+      {showRating && !ratingDone && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center p-4"
+          style={{ background:"rgba(0,0,0,0.75)", backdropFilter:"blur(8px)" }}>
+          <div className="w-full max-w-sm p-6 rounded-3xl animate-scale-in text-center"
+            style={{ background:"rgba(13,13,26,0.99)", border:"1px solid rgba(99,102,241,0.3)", boxShadow:"0 0 60px rgba(99,102,241,0.15)" }}>
+            <div className="text-4xl mb-3">⭐</div>
+            <h3 className="text-white font-bold text-lg mb-1">Rate this chat</h3>
+            <p className="text-sm mb-5" style={{ color:"#64748b" }}>How was your conversation?</p>
+            <div className="flex justify-center gap-3 mb-5">
+              {[1,2,3,4,5].map(star => (
+                <button key={star} onClick={() => {
+                  socket.emit("rate_stranger", { userId: profile.userId, stars: star });
+                  setRatingDone(true);
+                  setShowRating(false);
+                  showToast(`Thanks for rating! You gave ${star}⭐`, "success");
+                }}
+                  className="text-3xl transition-all hover:scale-125 active:scale-95">
+                  ⭐
+                </button>
+              ))}
+            </div>
+            <button onClick={() => setShowRating(false)}
+              className="text-sm font-medium transition-colors hover:text-slate-300"
+              style={{ color:"#475569" }}>
+              Skip
+            </button>
+          </div>
+        </div>
       )}
 
       {/* Report modal */}

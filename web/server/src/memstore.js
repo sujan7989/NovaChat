@@ -12,6 +12,7 @@ const sessions = new Map();
 const queue    = [];
 const reports  = new Map();
 const stats    = new Map();
+const recentPartners = new Map();
 
 export async function setPair(userA, userB) {
   sessions.set(String(userA), String(userB));
@@ -25,7 +26,12 @@ export async function getPartner(userId) {
 export async function removePair(userId) {
   const partner = sessions.get(String(userId));
   sessions.delete(String(userId));
-  if (partner) sessions.delete(partner);
+  if (partner) {
+    sessions.delete(partner);
+    // Remember recent partner for rating
+    recentPartners.set(String(userId), partner);
+    recentPartners.set(partner, String(userId));
+  }
   return partner || null;
 }
 
@@ -146,4 +152,23 @@ export async function decrementStat(key) {
 export async function ping() {
   // In-memory store is always available
   return true;
+}
+
+// ── Rating system ──────────────────────────────────────────────────────────
+const ratings = [];
+
+export async function addRating(fromUserId, toUserId, stars) {
+  ratings.push({ fromUserId, toUserId, stars, ts: Date.now() });
+  // Keep only last 1000 ratings in memory
+  if (ratings.length > 1000) ratings.shift();
+}
+
+export async function getAverageRating(userId) {
+  const userRatings = ratings.filter(r => r.toUserId === userId);
+  if (!userRatings.length) return null;
+  return userRatings.reduce((sum, r) => sum + r.stars, 0) / userRatings.length;
+}
+
+export async function getRecentPartner(userId) {
+  return recentPartners.get(String(userId)) || null;
 }

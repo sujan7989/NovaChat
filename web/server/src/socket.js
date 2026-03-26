@@ -1,5 +1,6 @@
 import { findOrQueue, disconnectUser } from "./matchmaking.js";
 import { getStore } from "./store.js";
+import Filter from "bad-words";
 import {
   REPORT_BAN_THRESHOLD,
   MAX_MESSAGE_SIZE,
@@ -23,6 +24,7 @@ import {
 import { createLogger } from "./logger.js";
 
 const logger = createLogger("socket");
+const filter = new Filter();
 
 const socketToUser = new Map();
 const userToSocket = new Map();
@@ -116,12 +118,30 @@ export function initSocket(io) {
 
       const { userId, text } = validation.data;
 
+      // AI Moderation — block toxic messages
+      let cleanText = text;
+      let wasProfane = false;
+      try {
+        if (filter.isProfane(text)) {
+          wasProfane = true;
+          cleanText = filter.clean(text);
+        }
+      } catch {}
+
+      if (wasProfane) {
+        socket.emit("moderation_warning", { msg: "⚠️ Your message contained inappropriate content and was filtered." });
+      }
+
       try {
         const partnerId = await getStore().getPartner(userId);
         if (!partnerId) return;
 
         const ps = userToSocket.get(partnerId);
-        if (ps) io.to(ps).emit("message", { text, from: "stranger" });
+        if (ps) {
+          io.to(ps).emit("message", { text: cleanText, from: "stranger" });
+          // Delivered status — notify sender their message was delivered
+          socket.emit("message_delivered", { text });
+        }
       } catch (err) {
         logger.error(`Error in message handler: ${err.message}`);
       }
@@ -356,6 +376,22 @@ export function initSocket(io) {
         logger.info(`User ${userId} reported ${partnerId} (report count: ${count})`);
       } catch (err) {
         logger.error(`Error in report handler: ${err.message}`);
+      }
+    });
+
+    socket.on("rate_stranger", async (payload) => {
+      if (!payload || typeof payload !== "object") return;
+      const { userId, stars } = payload;
+      if (!userId || typeof stars !== "number" || stars < 1 || stars > 5) return;
+      try {
+        // We store who they last chatted with via a recent-partner lookup
+        const recentPartner = await getStore().getRecentPartner(userId).catch(() => null);
+        if (recentPartner) {
+          await getStore().addRating(userId, recentPartner, Math.round(stars));
+          socket.emit("rating_saved");
+        }
+      } catch (err) {
+        logger.error(`Error in rate_stranger handler: ${err.message}`);
       }
     });
 

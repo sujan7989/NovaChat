@@ -10,6 +10,7 @@ export interface Message {
   dataUrl?: string;
   caption?: string;
   timestamp: number;
+  delivered?: boolean;
 }
 
 export interface UserProfile {

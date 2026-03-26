@@ -18,7 +18,12 @@ export async function getPartner(userId) {
 export async function removePair(userId) {
   const partner = await redis.get(`session:${userId}`);
   await redis.del(`session:${userId}`);
-  if (partner) await redis.del(`session:${partner}`);
+  if (partner) {
+    await redis.del(`session:${partner}`);
+    // Remember recent partner for rating (expires in 10 mins)
+    await redis.set(`recent:${userId}`, partner, "EX", 600);
+    await redis.set(`recent:${partner}`, userId, "EX", 600);
+  }
   return partner;
 }
 
@@ -134,3 +139,22 @@ export async function ping() {
 }
 
 export default redis;
+
+// ── Rating system ──────────────────────────────────────────────────────────
+export async function addRating(fromUserId, toUserId, stars) {
+  await redis.lpush(`ratings:${toUserId}`, JSON.stringify({ stars, ts: Date.now() }));
+  await redis.ltrim(`ratings:${toUserId}`, 0, 99); // keep last 100 ratings
+}
+
+export async function getAverageRating(userId) {
+  const items = await redis.lrange(`ratings:${userId}`, 0, -1);
+  if (!items.length) return null;
+  const total = items.reduce((sum, raw) => {
+    try { return sum + JSON.parse(raw).stars; } catch { return sum; }
+  }, 0);
+  return total / items.length;
+}
+
+export async function getRecentPartner(userId) {
+  return await redis.get(`recent:${userId}`);
+}
