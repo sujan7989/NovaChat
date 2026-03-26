@@ -268,9 +268,21 @@ export default function Chat({ profile, onStop }: Props) {
     });
     socket.connect();
     socket.on("disconnect", () => { setReconnecting(true); });
-    socket.on("connect", () => { setReconnecting(prev => { if (prev) showToast("Reconnected to server", "success"); return false; }); });
+    socket.on("connect", () => {
+      setReconnecting(prev => {
+        if (prev) {
+          showToast("Reconnected to server", "success");
+          // Re-emit find after reconnect so user gets back into queue
+          socket.emit("find", { ...profile, languages: profile.languages, vibes: profile.vibes });
+        }
+        return false;
+      });
+    });
     socket.io.on("reconnect_attempt", () => setReconnecting(true));
-    socket.io.on("reconnect", () => { setReconnecting(false); showToast("Reconnected to server", "success"); });
+    socket.io.on("reconnect", () => {
+      setReconnecting(false);
+      showToast("Reconnected to server", "success");
+    });
     const emitFind = () => socket.emit("find", { ...profile, languages: profile.languages, vibes: profile.vibes });
     if (socket.connected) emitFind(); else socket.once("connect", emitFind);
     return () => {
