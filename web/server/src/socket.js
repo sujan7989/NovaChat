@@ -1,6 +1,6 @@
 import { findOrQueue, disconnectUser } from "./matchmaking.js";
 import { getStore } from "./store.js";
-import Filter from "bad-words";
+import { Filter } from "bad-words";
 import {
   REPORT_BAN_THRESHOLD,
   MAX_MESSAGE_SIZE,
