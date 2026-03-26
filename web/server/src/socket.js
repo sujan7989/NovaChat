@@ -1,6 +1,7 @@
 import { findOrQueue, disconnectUser } from "./matchmaking.js";
 import { getStore } from "./store.js";
 import { Filter } from "bad-words";
+import { generateIcebreaker, summarizeConversation } from "./ai.js";
 import {
   REPORT_BAN_THRESHOLD,
   MAX_MESSAGE_SIZE,
@@ -85,8 +86,14 @@ export function initSocket(io) {
         if (match) {
           const partnerSocket = userToSocket.get(match.partnerId);
           if (partnerSocket) {
-            socket.emit("matched", { shared: match.shared, partnerVibes: match.partnerVibes });
-            io.to(partnerSocket).emit("matched", { shared: match.shared });
+            // Generate AI icebreaker in background — don't block matching
+            generateIcebreaker(match.shared, match.partnerVibes).then(icebreaker => {
+              socket.emit("matched", { shared: match.shared, partnerVibes: match.partnerVibes, icebreaker });
+              io.to(partnerSocket).emit("matched", { shared: match.shared, icebreaker });
+            }).catch(() => {
+              socket.emit("matched", { shared: match.shared, partnerVibes: match.partnerVibes });
+              io.to(partnerSocket).emit("matched", { shared: match.shared });
+            });
             await getStore().incrementStat("active_chats");
             logger.info(`Match created: ${userId} <-> ${match.partnerId}`);
           } else {
@@ -377,6 +384,22 @@ export function initSocket(io) {
       } catch (err) {
         logger.error(`Error in report handler: ${err.message}`);
       }
+    });
+
+    socket.on("request_summary", async (payload) => {
+      if (!payload?.userId) return;
+      const { userId } = payload;
+      // Get messages from the conversation store if available
+      // We pass the socket's recent messages via the client
+      // Summary is generated from client-side messages sent via this event
+    });
+
+    socket.on("submit_for_summary", async (payload) => {
+      if (!payload?.userId || !Array.isArray(payload.messages)) return;
+      try {
+        const summary = await summarizeConversation(payload.messages);
+        if (summary) socket.emit("chat_summary", { summary });
+      } catch {}
     });
 
     socket.on("rate_stranger", async (payload) => {

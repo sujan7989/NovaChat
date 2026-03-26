@@ -198,6 +198,7 @@ export default function Chat({ profile, onStop }: Props) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showRating, setShowRating] = useState(false);
   const [ratingDone, setRatingDone] = useState(false);
+  const [chatSummary, setChatSummary] = useState<string | null>(null);
   // Detect if desktop (>=768px) — sidebar always visible on desktop
   const [isDesktop, setIsDesktop] = useState(() => window.innerWidth >= 768);
   useEffect(() => {
@@ -219,7 +220,7 @@ export default function Chat({ profile, onStop }: Props) {
 
   useEffect(() => {
     socket.on("queued", () => setStatus("searching"));
-    socket.on("matched", ({ shared, partnerVibes }: { shared: string[]; partnerVibes?: string[] }) => {
+    socket.on("matched", ({ shared, partnerVibes, icebreaker }: { shared: string[]; partnerVibes?: string[]; icebreaker?: string }) => {
       setStatus("chatting"); setMessages([]); setChatKey(k => k + 1);
       setShowMatchFlash(true);
       if (soundOnRef.current) playPing();
@@ -228,12 +229,24 @@ export default function Chat({ profile, onStop }: Props) {
         : partnerVibes?.length ? `👋 You're connected! Stranger's vibe: ${partnerVibes.join(", ")}`
         : "👋 You're connected! Say something...";
       addMsg({ from: "stranger", type: "text", text: txt });
+      if (icebreaker) {
+        setTimeout(() => addMsg({ from: "stranger", type: "text", text: `🤖 Icebreaker: ${icebreaker}` }), 800);
+      }
       setTimeout(() => inputRef.current?.focus(), 200);
     });
     socket.on("message", ({ text }: { text: string }) => { setStrangerTyping(false); addMsg({ from: "stranger", type: "text", text }); });
     socket.on("image", ({ dataUrl, caption }: { dataUrl: string; caption?: string }) => addMsg({ from: "stranger", type: "image", dataUrl, caption }));
     socket.on("typing", ({ isTyping }: { isTyping: boolean }) => setStrangerTyping(isTyping));
-    socket.on("stranger_left", () => { setStatus("stopped"); cleanup(); setShowVideo(false); addMsg({ from: "stranger", type: "text", text: "👻 Stranger has left the chat." }); setShowRating(true); });
+    socket.on("stranger_left", () => {
+      setStatus("stopped"); cleanup(); setShowVideo(false);
+      addMsg({ from: "stranger", type: "text", text: "👻 Stranger has left the chat." });
+      setShowRating(true);
+      // Send messages to server for AI summary
+      socket.emit("submit_for_summary", { userId: profile.userId, messages: messages });
+    });
+    socket.on("chat_summary", ({ summary }: { summary: string }) => {
+      setChatSummary(summary);
+    });
     socket.on("stopped", () => { setStatus("stopped"); cleanup(); setShowVideo(false); });
     socket.on("banned", () => addMsg({ from: "stranger", type: "text", text: "⚠️ You've been banned for violations." }));
     socket.on("webrtc:offer", ({ offer }: { offer: RTCSessionDescriptionInit }) => { handleOffer(offer); setShowVideo(true); });
@@ -302,7 +315,7 @@ export default function Chat({ profile, onStop }: Props) {
 
   const handleNext = () => {
     cleanup(); setShowVideo(false); setShowEmoji(false);
-    setShowRating(false); setRatingDone(false);
+    setShowRating(false); setRatingDone(false); setChatSummary(null);
     socket.emit("next", { ...profile, languages: profile.languages, vibes: profile.vibes });
     setStatus("searching"); setMessages([]);
   };
@@ -755,7 +768,13 @@ export default function Chat({ profile, onStop }: Props) {
             style={{ background:"rgba(13,13,26,0.99)", border:"1px solid rgba(99,102,241,0.3)", boxShadow:"0 0 60px rgba(99,102,241,0.15)" }}>
             <div className="text-4xl mb-3">⭐</div>
             <h3 className="text-white font-bold text-lg mb-1">Rate this chat</h3>
-            <p className="text-sm mb-5" style={{ color:"#64748b" }}>How was your conversation?</p>
+            <p className="text-sm mb-3" style={{ color:"#64748b" }}>How was your conversation?</p>
+            {chatSummary && (
+              <div className="mb-4 px-4 py-3 rounded-2xl text-xs text-left" style={{ background:"rgba(99,102,241,0.1)", border:"1px solid rgba(99,102,241,0.2)", color:"#a5b4fc" }}>
+                <p className="font-bold mb-1" style={{ color:"#818cf8" }}>🤖 Chat Summary</p>
+                <p style={{ color:"#cbd5e1" }}>{chatSummary}</p>
+              </div>
+            )}
             <div className="flex justify-center gap-3 mb-5">
               {[1,2,3,4,5].map(star => (
                 <button key={star} onClick={() => {
