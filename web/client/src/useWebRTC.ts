@@ -71,29 +71,39 @@ export function useWebRTC(userId: string) {
 
     // Fix: avoid duplicate tracks — only add if not already present
     pc.ontrack = (e) => {
+      console.log("[WebRTC] ontrack fired, track:", e.track.kind, "readyState:", e.track.readyState);
       const stream = remoteStreamRef.current;
       const existingIds = stream.getTracks().map(t => t.id);
       if (!existingIds.includes(e.track.id)) {
         stream.addTrack(e.track);
       }
-      // Update state to trigger re-render
       setRemoteStream(new MediaStream(stream.getTracks()));
-
-      // Also update when track unmutes (some browsers delay this)
       e.track.onunmute = () => {
+        console.log("[WebRTC] track unmuted:", e.track.kind);
         setRemoteStream(new MediaStream(stream.getTracks()));
       };
+      e.track.onended = () => console.log("[WebRTC] track ended:", e.track.kind);
     };
 
     pc.onconnectionstatechange = () => {
       const s = pc.connectionState;
+      console.log("[WebRTC] connectionState:", s);
       if (s === "connected") setCallError(null);
       else if (s === "disconnected") setCallError("Connection unstable...");
       else if (s === "failed") setCallError("Connection failed. End and restart the call.");
     };
 
     pc.oniceconnectionstatechange = () => {
+      console.log("[WebRTC] iceConnectionState:", pc.iceConnectionState);
       if (pc.iceConnectionState === "failed") pc.restartIce();
+    };
+
+    pc.onicegatheringstatechange = () => {
+      console.log("[WebRTC] iceGatheringState:", pc.iceGatheringState);
+    };
+
+    pc.onsignalingstatechange = () => {
+      console.log("[WebRTC] signalingState:", pc.signalingState);
     };
 
     pcRef.current = pc;
