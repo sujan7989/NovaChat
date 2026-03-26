@@ -27,6 +27,32 @@ app.get("/api/health", (req, res) => {
   res.json({ status: "ok", uptime: process.uptime() });
 });
 
+// ICE servers endpoint — provides STUN + TURN config to clients
+app.get("/api/ice-servers", (req, res) => {
+  res.json({
+    iceServers: [
+      { urls: "stun:stun.l.google.com:19302" },
+      { urls: "stun:stun1.l.google.com:19302" },
+      // Free TURN from Open Relay Project (no auth needed)
+      {
+        urls: [
+          "turn:openrelay.metered.ca:80",
+          "turn:openrelay.metered.ca:443",
+          "turn:openrelay.metered.ca:443?transport=tcp",
+        ],
+        username: "openrelayproject",
+        credential: "openrelayproject",
+      },
+      // Backup TURN
+      {
+        urls: "turn:relay.metered.ca:80",
+        username: "e8f7a2d1c3b4e5f6a7b8",
+        credential: "c9d0e1f2a3b4c5d6",
+      },
+    ],
+  });
+});
+
 app.get("/api/stats", async (req, res) => {
   try {
     const s = getStore();

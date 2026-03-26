@@ -1,18 +1,24 @@
 import { useRef, useState, useCallback } from "react";
 import socket from "./socket";
 
-const ICE_SERVERS: RTCConfiguration = {
-  iceServers: [
+const SOCKET_URL = import.meta.env.VITE_API_URL || "https://novachat-production-57d2.up.railway.app";
+
+// Fetch ICE servers including TURN from our server
+async function getIceServers(): Promise<RTCIceServer[]> {
+  const base: RTCIceServer[] = [
     { urls: "stun:stun.l.google.com:19302" },
     { urls: "stun:stun1.l.google.com:19302" },
     { urls: "stun:stun2.l.google.com:19302" },
-    { urls: "stun:stun3.l.google.com:19302" },
-    { urls: "stun:stun4.l.google.com:19302" },
-  ],
-  iceCandidatePoolSize: 10,
-  bundlePolicy: "max-bundle",
-  rtcpMuxPolicy: "require",
-};
+  ];
+  try {
+    const res = await fetch(`${SOCKET_URL}/api/ice-servers`);
+    if (!res.ok) throw new Error();
+    const data = await res.json();
+    return data.iceServers || base;
+  } catch {
+    return base;
+  }
+}
 
 async function getStream(): Promise<MediaStream> {
   const attempts: MediaStreamConstraints[] = [
@@ -48,9 +54,15 @@ export function useWebRTC(userId: string) {
     setCallError(null);
   }, []);
 
-  const createPC = useCallback(() => {
+  const createPC = useCallback(async () => {
     pcRef.current?.close();
-    const pc = new RTCPeerConnection(ICE_SERVERS);
+    const iceServers = await getIceServers();
+    const pc = new RTCPeerConnection({
+      iceServers,
+      iceCandidatePoolSize: 10,
+      bundlePolicy: "max-bundle",
+      rtcpMuxPolicy: "require",
+    });
     remoteStreamRef.current = new MediaStream();
 
     pc.onicecandidate = ({ candidate }) => {
@@ -103,7 +115,7 @@ export function useWebRTC(userId: string) {
       localStreamRef.current = stream;
       setLocalStream(stream);
 
-      const pc = createPC();
+      const pc = await createPC();
       stream.getTracks().forEach(t => pc.addTrack(t, stream));
 
       const offer = await pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: true });
@@ -136,7 +148,7 @@ export function useWebRTC(userId: string) {
       localStreamRef.current = stream;
       setLocalStream(stream);
 
-      const pc = createPC();
+      const pc = await createPC();
       stream.getTracks().forEach(t => pc.addTrack(t, stream));
 
       await pc.setRemoteDescription(new RTCSessionDescription(offer));
