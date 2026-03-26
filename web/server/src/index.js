@@ -14,8 +14,10 @@ const httpServer = createServer(app);
 const io = new Server(httpServer, {
   cors: { origin: "*", methods: ["GET", "POST"] },
   maxHttpBufferSize: 6 * 1024 * 1024,
-  pingTimeout: 60000,
-  pingInterval: 25000,
+  pingTimeout: 120000,   // 2 min — handles mobile network switches
+  pingInterval: 30000,   // ping every 30s
+  connectTimeout: 45000,
+  transports: ["websocket", "polling"],
 });
 
 // CORS must be first — ensures headers on ALL responses including errors
@@ -33,21 +35,27 @@ app.get("/api/ice-servers", (req, res) => {
     iceServers: [
       { urls: "stun:stun.l.google.com:19302" },
       { urls: "stun:stun1.l.google.com:19302" },
-      // Free TURN from Open Relay Project (no auth needed)
+      { urls: "stun:stun2.l.google.com:19302" },
+      // Metered free TURN — reliable public credentials
       {
-        urls: [
-          "turn:openrelay.metered.ca:80",
-          "turn:openrelay.metered.ca:443",
-          "turn:openrelay.metered.ca:443?transport=tcp",
-        ],
-        username: "openrelayproject",
-        credential: "openrelayproject",
+        urls: "turn:a.relay.metered.ca:80",
+        username: "83eebabf8b4cce9d5dbcb649",
+        credential: "2D7JvfkOQtBdYW3R",
       },
-      // Backup TURN
       {
-        urls: "turn:relay.metered.ca:80",
-        username: "e8f7a2d1c3b4e5f6a7b8",
-        credential: "c9d0e1f2a3b4c5d6",
+        urls: "turn:a.relay.metered.ca:80?transport=tcp",
+        username: "83eebabf8b4cce9d5dbcb649",
+        credential: "2D7JvfkOQtBdYW3R",
+      },
+      {
+        urls: "turn:a.relay.metered.ca:443",
+        username: "83eebabf8b4cce9d5dbcb649",
+        credential: "2D7JvfkOQtBdYW3R",
+      },
+      {
+        urls: "turn:a.relay.metered.ca:443?transport=tcp",
+        username: "83eebabf8b4cce9d5dbcb649",
+        credential: "2D7JvfkOQtBdYW3R",
       },
     ],
   });

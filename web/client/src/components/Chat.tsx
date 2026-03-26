@@ -253,6 +253,8 @@ export default function Chat({ profile, onStop }: Props) {
     socket.on("webrtc:answer", ({ answer }: { answer: RTCSessionDescriptionInit }) => handleAnswer(answer));
     socket.on("webrtc:ice", ({ candidate }: { candidate: RTCIceCandidateInit }) => handleIce(candidate));
     socket.on("webrtc:end", () => { cleanup(); setShowVideo(false); });
+    // Also end call if socket disconnects
+    socket.on("disconnect", () => { if (showVideo) { cleanup(); setShowVideo(false); } });
     socket.on("message_delivered", ({ text }: { text: string }) => {
       setMessages(prev => {
         const idx = [...prev].reverse().findIndex(m => m.from === "me" && m.text === text);
