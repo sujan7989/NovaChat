@@ -44,12 +44,22 @@ export default function VideoCall({ localStream, remoteStream, callError, userId
   useEffect(() => {
     const video = remoteRef.current;
     if (!video || !remoteStream) return;
-    // Only reassign if the stream object changed
     if (video.srcObject !== remoteStream) {
       video.srcObject = remoteStream;
+      video.play().catch(() => {});
     }
-    video.play().catch(() => {});
   }, [remoteStream]);
+
+  // Extra: poll every second to force play if video is paused/stuck
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const video = remoteRef.current;
+      if (video && video.srcObject && video.paused) {
+        video.play().catch(() => {});
+      }
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Listen for in-call chat messages from stranger
   useEffect(() => {

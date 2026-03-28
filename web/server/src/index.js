@@ -36,6 +36,9 @@ app.get("/api/ice-servers", (req, res) => {
       { urls: "stun:stun.l.google.com:19302" },
       { urls: "stun:stun1.l.google.com:19302" },
       { urls: "stun:stun2.l.google.com:19302" },
+      { urls: "stun:stun3.l.google.com:19302" },
+      { urls: "stun:stun4.l.google.com:19302" },
+      // Metered TURN
       {
         urls: "turn:a.relay.metered.ca:80",
         username: "cc70a4c28c13a5c8d3535194",
@@ -55,6 +58,12 @@ app.get("/api/ice-servers", (req, res) => {
         urls: "turn:a.relay.metered.ca:443?transport=tcp",
         username: "cc70a4c28c13a5c8d3535194",
         credential: "9HU0i9bnPbBhNr2O",
+      },
+      // Backup TURN - numb.viagenie.ca (free, no auth)
+      {
+        urls: "turn:numb.viagenie.ca",
+        username: "webrtc@live.com",
+        credential: "muazkh",
       },
     ],
   });
