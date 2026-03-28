@@ -36,26 +36,25 @@ app.get("/api/ice-servers", (req, res) => {
       { urls: "stun:stun.l.google.com:19302" },
       { urls: "stun:stun1.l.google.com:19302" },
       { urls: "stun:stun2.l.google.com:19302" },
-      // Metered free TURN — reliable public credentials
       {
         urls: "turn:a.relay.metered.ca:80",
-        username: "83eebabf8b4cce9d5dbcb649",
-        credential: "2D7JvfkOQtBdYW3R",
+        username: "cc70a4c28c13a5c8d3535194",
+        credential: "9HU0i9bnPbBhNr2O",
       },
       {
         urls: "turn:a.relay.metered.ca:80?transport=tcp",
-        username: "83eebabf8b4cce9d5dbcb649",
-        credential: "2D7JvfkOQtBdYW3R",
+        username: "cc70a4c28c13a5c8d3535194",
+        credential: "9HU0i9bnPbBhNr2O",
       },
       {
         urls: "turn:a.relay.metered.ca:443",
-        username: "83eebabf8b4cce9d5dbcb649",
-        credential: "2D7JvfkOQtBdYW3R",
+        username: "cc70a4c28c13a5c8d3535194",
+        credential: "9HU0i9bnPbBhNr2O",
       },
       {
         urls: "turn:a.relay.metered.ca:443?transport=tcp",
-        username: "83eebabf8b4cce9d5dbcb649",
-        credential: "2D7JvfkOQtBdYW3R",
+        username: "cc70a4c28c13a5c8d3535194",
+        credential: "9HU0i9bnPbBhNr2O",
       },
     ],
   });
