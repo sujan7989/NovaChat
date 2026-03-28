@@ -3,7 +3,6 @@ import socket from "./socket";
 
 const SOCKET_URL = import.meta.env.VITE_API_URL || "https://novachat-production-57d2.up.railway.app";
 
-// Fetch ICE servers including TURN from our server
 async function getIceServers(): Promise<RTCIceServer[]> {
   const base: RTCIceServer[] = [
     { urls: "stun:stun.l.google.com:19302" },
@@ -22,7 +21,6 @@ async function getIceServers(): Promise<RTCIceServer[]> {
 
 async function getStream(): Promise<MediaStream> {
   const attempts: MediaStreamConstraints[] = [
-    { video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: "user" }, audio: true },
     { video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: "user" }, audio: true },
     { video: true, audio: true },
   ];
@@ -54,56 +52,47 @@ export function useWebRTC(userId: string) {
     setCallError(null);
   }, []);
 
-  const createPC = useCallback(async () => {
-    pcRef.current?.close();
-    const iceServers = await getIceServers();
-    const pc = new RTCPeerConnection({
-      iceServers,
-      iceCandidatePoolSize: 10,
-      bundlePolicy: "max-bundle",
-      rtcpMuxPolicy: "require",
-    });
+  // Create a fresh PeerConnection — only call this once per call session
+  const buildPC = useCallback(async (stream: MediaStream) => {
+    // Close any existing PC first
+    if (pcRef.current) {
+      pcRef.current.close();
+      pcRef.current = null;
+    }
     remoteStreamRef.current = new MediaStream();
+
+    const iceServers = await getIceServers();
+    const pc = new RTCPeerConnection({ iceServers, iceCandidatePoolSize: 10 });
+
+    // Add local tracks
+    stream.getTracks().forEach(t => pc.addTrack(t, stream));
 
     pc.onicecandidate = ({ candidate }) => {
       if (candidate) socket.emit("webrtc:ice", { userId, candidate });
     };
 
-    // Fix: avoid duplicate tracks — only add if not already present
     pc.ontrack = (e) => {
-      console.log("[WebRTC] ontrack fired, track:", e.track.kind, "readyState:", e.track.readyState);
       const stream = remoteStreamRef.current;
-      const existingIds = stream.getTracks().map(t => t.id);
-      if (!existingIds.includes(e.track.id)) {
+      if (!stream.getTrackById(e.track.id)) {
         stream.addTrack(e.track);
-      }
-      setRemoteStream(new MediaStream(stream.getTracks()));
-      e.track.onunmute = () => {
-        console.log("[WebRTC] track unmuted:", e.track.kind);
         setRemoteStream(new MediaStream(stream.getTracks()));
+      }
+      e.track.onunmute = () => {
+        setRemoteStream(new MediaStream(remoteStreamRef.current.getTracks()));
       };
-      e.track.onended = () => console.log("[WebRTC] track ended:", e.track.kind);
     };
 
     pc.onconnectionstatechange = () => {
       const s = pc.connectionState;
-      console.log("[WebRTC] connectionState:", s);
       if (s === "connected") setCallError(null);
-      else if (s === "disconnected") setCallError("Connection unstable...");
-      else if (s === "failed") setCallError("Connection failed. End and restart the call.");
+      else if (s === "failed") {
+        setCallError("Connection failed. Please end and restart the call.");
+        pc.restartIce();
+      }
     };
 
     pc.oniceconnectionstatechange = () => {
-      console.log("[WebRTC] iceConnectionState:", pc.iceConnectionState);
       if (pc.iceConnectionState === "failed") pc.restartIce();
-    };
-
-    pc.onicegatheringstatechange = () => {
-      console.log("[WebRTC] iceGatheringState:", pc.iceGatheringState);
-    };
-
-    pc.onsignalingstatechange = () => {
-      console.log("[WebRTC] signalingState:", pc.signalingState);
     };
 
     pcRef.current = pc;
@@ -113,11 +102,12 @@ export function useWebRTC(userId: string) {
   const flushCandidates = useCallback(async () => {
     if (!pcRef.current?.remoteDescription) return;
     for (const c of pendingCandidates.current) {
-      try { await pcRef.current.addIceCandidate(c); } catch {}
+      try { await pcRef.current.addIceCandidate(new RTCIceCandidate(c)); } catch {}
     }
     pendingCandidates.current = [];
   }, []);
 
+  // CALLER: get stream → build PC → create offer → send
   const startCall = useCallback(async () => {
     try {
       setCallError(null);
@@ -125,42 +115,24 @@ export function useWebRTC(userId: string) {
       localStreamRef.current = stream;
       setLocalStream(stream);
 
-      const pc = await createPC();
-      stream.getTracks().forEach(t => pc.addTrack(t, stream));
-
-      const offer = await pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: true });
+      const pc = await buildPC(stream);
+      const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
       socket.emit("webrtc:offer", { userId, offer });
     } catch (err: unknown) {
       setCallError(err instanceof Error ? err.message : "Failed to start call");
     }
-  }, [userId, createPC]);
+  }, [userId, buildPC]);
 
+  // ANSWERER: get stream → build PC → set remote → create answer → send
   const handleOffer = useCallback(async (offer: RTCSessionDescriptionInit) => {
     try {
       setCallError(null);
-
-      // If we already have a peer connection with a local offer (glare), ignore incoming offer
-      // The side that sent the offer first wins; the other side answers
-      if (pcRef.current && pcRef.current.signalingState === "have-local-offer") {
-        // Glare: both sides sent offers. Use userId comparison to decide who answers.
-        // The server sends the offer from the partner — we just answer it (rollback our offer)
-        try {
-          await pcRef.current.setLocalDescription({ type: "rollback" });
-        } catch {
-          // Rollback not supported — close and recreate
-          pcRef.current.close();
-          pcRef.current = null;
-        }
-      }
-
       const stream = await getStream();
       localStreamRef.current = stream;
       setLocalStream(stream);
 
-      const pc = await createPC();
-      stream.getTracks().forEach(t => pc.addTrack(t, stream));
-
+      const pc = await buildPC(stream);
       await pc.setRemoteDescription(new RTCSessionDescription(offer));
       await flushCandidates();
 
@@ -170,7 +142,7 @@ export function useWebRTC(userId: string) {
     } catch (err: unknown) {
       setCallError(err instanceof Error ? err.message : "Failed to answer call");
     }
-  }, [userId, createPC, flushCandidates]);
+  }, [userId, buildPC, flushCandidates]);
 
   const handleAnswer = useCallback(async (answer: RTCSessionDescriptionInit) => {
     try {
