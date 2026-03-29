@@ -136,13 +136,6 @@ export default function Landing({ onStart }: Props) {
     return () => window.removeEventListener("keydown", onKey);
   }, [leaving]);
 
-  const features = [
-    { icon: "💬", label: "Text Chat" },
-    { icon: "🖼️", label: "Images" },
-    { icon: "🔴", label: "Live Video" },
-    { icon: "🎯", label: "Smart Match" },
-  ];
-
   return (
     <div
       className="h-full w-full flex items-center justify-center relative overflow-hidden"
@@ -215,33 +208,15 @@ export default function Landing({ onStart }: Props) {
         </h1>
 
         <p
-          className="text-sm leading-relaxed mb-5"
-          style={{ color: "rgba(255,255,255,0.55)", maxWidth: 340 }}
+          className="text-sm leading-relaxed mb-6"
+          style={{ color: "rgba(255,255,255,0.45)", maxWidth: 300 }}
         >
-          Modern anonymous chat with strangers.
+          Anonymous chat with strangers.
           <br />
-          No account. No name. Just connections.
+          No account. No name.
         </p>
 
-        <div className="flex flex-wrap justify-center gap-1.5 mb-5">
-          {features.map((f) => (
-            <div
-              key={f.label}
-              className="flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold"
-              style={{
-                background: "rgba(255,255,255,0.07)",
-                border: "1px solid rgba(255,255,255,0.12)",
-                color: "rgba(255,255,255,0.75)",
-                backdropFilter: "blur(8px)",
-              }}
-            >
-              <span>{f.icon}</span>
-              <span>{f.label}</span>
-            </div>
-          ))}
-        </div>
-
-        <div className="relative w-full max-w-sm mb-4">
+        <div className="relative w-full max-w-sm mb-5">
           <div
             className="absolute inset-0 rounded-full"
             style={{
@@ -269,18 +244,12 @@ export default function Landing({ onStart }: Props) {
           </button>
         </div>
 
-        <div className="flex items-center gap-3 text-xs font-semibold flex-wrap justify-center">
-          <span className="flex items-center gap-1" style={{ color: "rgba(255,255,255,0.4)" }}>
-            <span>🔒</span><span>100% Anonymous</span>
-          </span>
-          <span className="w-px h-3" style={{ background: "rgba(255,255,255,0.12)" }} />
-          <span className="flex items-center gap-1" style={{ color: "rgba(255,255,255,0.4)" }}>
-            <span>⚡</span><span>No signup needed</span>
-          </span>
-          <span className="w-px h-3" style={{ background: "rgba(255,255,255,0.12)" }} />
-          <span className="flex items-center gap-1" style={{ color: "rgba(255,255,255,0.4)" }}>
-            <span>🌍</span><span>Meet the world</span>
-          </span>
+        <div className="flex items-center gap-4 text-xs font-medium flex-wrap justify-center">
+          <span style={{ color: "rgba(255,255,255,0.35)" }}>🔒 Anonymous</span>
+          <span style={{ color: "rgba(255,255,255,0.15)" }}>·</span>
+          <span style={{ color: "rgba(255,255,255,0.35)" }}>⚡ No signup</span>
+          <span style={{ color: "rgba(255,255,255,0.15)" }}>·</span>
+          <span style={{ color: "rgba(255,255,255,0.35)" }}>🌍 Global</span>
         </div>
 
         <div className="mt-4 hidden sm:flex items-center gap-2" style={{ opacity: 0.3 }}>

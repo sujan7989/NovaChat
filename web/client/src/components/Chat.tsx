@@ -412,29 +412,22 @@ export default function Chat({ profile, onStop }: Props) {
         }}>
         <StarField count={35} offset={0} />
 
-        {/* Brand header */}
-        <div className="relative z-10 flex items-center gap-2.5 px-4 py-3.5" style={{ borderBottom:`1px solid ${BORDER}` }}>
-          <div className="w-8 h-8 rounded-xl flex items-center justify-center text-base shrink-0"
-            style={{ background:"linear-gradient(135deg,#6366f1,#8b5cf6)" }}>👻</div>
-          <div className="min-w-0">
-            <p className="text-white text-sm font-bold leading-tight">NovaChat</p>
-            <p className="text-xs truncate" style={{ color:"#475569" }}>Anonymous Chat</p>
-          </div>
+        {/* Brand header — compact */}
+        <div className="relative z-10 flex items-center gap-2 px-4 py-3" style={{ borderBottom:`1px solid ${BORDER}` }}>
+          <span className="text-lg">👻</span>
+          <p className="text-white text-sm font-bold">NovaChat</p>
           <div className="ml-auto flex items-center gap-1 shrink-0">
             <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
-            <span className="text-xs text-green-400 font-semibold">Live</span>
+            <span className="text-xs text-green-400 font-medium">Live</span>
           </div>
         </div>
 
         {/* Status row */}
-        <div className="relative z-10 px-4 py-3" style={{ borderBottom:`1px solid ${BORDER}` }}>
-          <p className="text-sm font-bold" style={{
+        <div className="relative z-10 px-4 py-2.5" style={{ borderBottom:`1px solid ${BORDER}` }}>
+          <p className="text-xs font-semibold" style={{
             color: status === "chatting" ? "#a5b4fc" : status === "searching" ? "#fbbf24" : "#64748b"
           }}>
-            {status === "chatting" ? "Connected" : status === "searching" ? "Searching..." : "Disconnected"}
-          </p>
-          <p className="text-xs mt-0.5" style={{ color:"#475569" }}>
-            {status === "chatting" ? "Chatting anonymously" : status === "searching" ? "Finding your stranger..." : "Chat ended"}
+            {status === "chatting" ? "● Connected" : status === "searching" ? "⟳ Searching..." : "○ Disconnected"}
           </p>
         </div>
 
@@ -479,38 +472,29 @@ export default function Chat({ profile, onStop }: Props) {
           )}
         </div>
 
-        {/* Sound toggle + bottom actions */}
-        <div className="relative z-10 p-4 space-y-3" style={{ borderTop:`1px solid ${BORDER}` }}>
+        {/* Bottom actions */}
+        <div className="relative z-10 p-3 space-y-2" style={{ borderTop:`1px solid ${BORDER}` }}>
           <button onClick={handleNext}
-            className="next-btn w-full flex items-center justify-center gap-2 py-3 rounded-2xl text-sm font-black text-white relative overflow-hidden group">
-            <span className="relative z-10 flex items-center gap-1.5">
-              <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z" clipRule="evenodd" />
-              </svg>
-              Skip → Next Stranger
-            </span>
+            className="next-btn w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-bold text-white relative overflow-hidden group">
+            <span className="relative z-10">⏭ Next Stranger</span>
             <span className="absolute inset-0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700"
               style={{ background:"linear-gradient(90deg,transparent,rgba(255,255,255,0.2),transparent)" }} />
           </button>
-          <div className="grid grid-cols-3 gap-2">
-            <button onClick={() => setShowReport(true)}
-              className="flex flex-col items-center justify-center gap-1 py-3 rounded-2xl font-bold transition-all hover:scale-105 active:scale-95"
-              style={{ background:"rgba(239,68,68,0.12)", border:"1px solid rgba(239,68,68,0.3)", color:"#f87171" }}>
-              <span className="text-lg">🚩</span>
-              <span className="text-xs">Report</span>
+          <div className="flex gap-2">
+            <button onClick={() => setShowReport(true)} title="Report"
+              className="flex-1 flex items-center justify-center py-2 rounded-xl transition-all hover:scale-105 active:scale-95"
+              style={{ background:"rgba(239,68,68,0.1)", border:"1px solid rgba(239,68,68,0.25)", color:"#f87171", fontSize: 18 }}>
+              🚩
             </button>
-            <button onClick={handleStop}
-              className="flex flex-col items-center justify-center gap-1 py-3 rounded-2xl font-bold transition-all hover:scale-105 active:scale-95"
-              style={{ background:"rgba(100,116,139,0.12)", border:"1px solid rgba(100,116,139,0.3)", color:"#94a3b8" }}>
-              <span className="text-lg">⚡</span>
-              <span className="text-xs">Leave</span>
+            <button onClick={handleStop} title="Leave"
+              className="flex-1 flex items-center justify-center py-2 rounded-xl transition-all hover:scale-105 active:scale-95"
+              style={{ background:"rgba(100,116,139,0.1)", border:"1px solid rgba(100,116,139,0.25)", color:"#94a3b8", fontSize: 18 }}>
+              ⚡
             </button>
-            <button onClick={() => setSoundOn(p => { soundOnRef.current = !p; return !p; })}
-              className="flex flex-col items-center justify-center gap-1 py-3 rounded-2xl font-bold transition-all hover:scale-105 active:scale-95"
-              style={{ background:"rgba(99,102,241,0.12)", border:"1px solid rgba(99,102,241,0.3)", color: soundOn ? "#818cf8" : "#475569" }}
-              title={soundOn ? "Mute sounds" : "Unmute sounds"}>
-              <span className="text-lg">{soundOn ? "🔔" : "🔕"}</span>
-              <span className="text-xs">{soundOn ? "Sound" : "Muted"}</span>
+            <button onClick={() => setSoundOn(p => { soundOnRef.current = !p; return !p; })} title={soundOn ? "Mute" : "Unmute"}
+              className="flex-1 flex items-center justify-center py-2 rounded-xl transition-all hover:scale-105 active:scale-95"
+              style={{ background:"rgba(99,102,241,0.1)", border:"1px solid rgba(99,102,241,0.25)", color: soundOn ? "#818cf8" : "#475569", fontSize: 18 }}>
+              {soundOn ? "🔔" : "🔕"}
             </button>
           </div>
         </div>

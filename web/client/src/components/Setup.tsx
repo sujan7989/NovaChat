@@ -145,27 +145,20 @@ export default function Setup({ onDone }: Props) {
   };
 
   const renderCTA = (onClick: () => void, onBack?: () => void) => (
-    <div className="w-full space-y-3">
+    <div className="w-full flex flex-col gap-2">
       <button onClick={onClick}
-        className="w-full py-4 rounded-2xl font-bold text-lg text-white grad-btn relative overflow-hidden group"
+        className="w-full py-3.5 rounded-2xl font-bold text-base text-white grad-btn relative overflow-hidden group"
         style={{ boxShadow: "0 8px 32px rgba(99,102,241,0.45)" }}>
         <span className="relative z-10">{ctaText()}</span>
         <span className="absolute inset-0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700"
           style={{ background: "linear-gradient(90deg,transparent,rgba(255,255,255,0.2),transparent)" }} />
       </button>
-      <div className={`grid gap-3 ${onBack ? "grid-cols-2" : "grid-cols-1"}`}>
-        {onBack && (
-          <button onClick={onBack}
-            className="w-full py-3 rounded-2xl font-bold text-sm text-white transition-all hover:scale-105 active:scale-95"
-            style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.18)" }}>
-            ← Back
-          </button>
-        )}
-        <button onClick={skip}
-          className="w-full py-3 rounded-2xl font-bold text-sm text-white transition-all hover:scale-105 active:scale-95"
-          style={{ background: "rgba(99,102,241,0.15)", border: "1px solid rgba(139,92,246,0.4)" }}>
-          Skip →
-        </button>
+      <div className="flex items-center justify-between px-1">
+        {onBack
+          ? <button onClick={onBack} className="text-sm font-medium transition-colors hover:text-slate-300" style={{ color: "#475569" }}>← Back</button>
+          : <span />
+        }
+        <button onClick={skip} className="text-sm font-medium transition-colors hover:text-slate-300" style={{ color: "#475569" }}>Skip →</button>
       </div>
     </div>
   );
@@ -174,35 +167,21 @@ export default function Setup({ onDone }: Props) {
     <div className={`h-full w-full flex flex-col relative overflow-hidden aurora-bg transition-opacity duration-500 ${visible ? "opacity-100" : "opacity-0"}`}>
       <SpaceBg />
 
-      {/* Step progress indicator */}
-      <div className="relative z-20 px-4 pt-4 flex justify-center shrink-0">
+      {/* Step progress — simple dots */}
+      <div className="relative z-20 pt-4 pb-1 flex justify-center shrink-0">
         <div className="flex items-center gap-2">
-          {STEP_LABELS.map((label, i) => {
+          {STEP_LABELS.map((_, i) => {
             const n = i + 1;
             const done = step > n;
             const active = step === n;
             return (
               <div key={n} className="flex items-center gap-2">
-                <div className="flex flex-col items-center gap-1">
-                  <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-black transition-all duration-300"
-                    style={{
-                      background: done ? "linear-gradient(135deg,#22c55e,#16a34a)" : active ? "linear-gradient(135deg,#6366f1,#8b5cf6)" : "rgba(255,255,255,0.06)",
-                      border: `1px solid ${done ? "rgba(34,197,94,0.5)" : active ? "rgba(99,102,241,0.6)" : "rgba(255,255,255,0.1)"}`,
-                      color: done || active ? "white" : "#475569",
-                      boxShadow: active ? "0 0 16px rgba(99,102,241,0.5)" : "none",
-                      transform: active ? "scale(1.15)" : "scale(1)",
-                    }}>
-                    {done ? "✓" : n}
-                  </div>
-                  <span className="text-xs font-semibold hidden sm:block"
-                    style={{ color: active ? "#a5b4fc" : done ? "#22c55e" : "#334155" }}>
-                    {label}
-                  </span>
-                </div>
-                {i < 3 && (
-                  <div className="w-6 sm:w-10 h-px mb-4 transition-all duration-500"
-                    style={{ background: done ? "linear-gradient(90deg,#22c55e,#16a34a)" : "rgba(255,255,255,0.08)" }} />
-                )}
+                <div className="rounded-full transition-all duration-300"
+                  style={{
+                    width: active ? 24 : 8,
+                    height: 8,
+                    background: done ? "#22c55e" : active ? "linear-gradient(90deg,#6366f1,#8b5cf6)" : "rgba(255,255,255,0.12)",
+                  }} />
               </div>
             );
           })}
@@ -214,14 +193,11 @@ export default function Setup({ onDone }: Props) {
         {/* STEP 1 */}
         {step === 1 && (
           <>
-            <p className="text-xs font-bold uppercase tracking-widest mb-2" style={{ color: "#64748b" }}>ABOUT YOU</p>
-            <h1 className="text-2xl sm:text-5xl font-black text-white mb-2 text-center">Who are you? 🙋</h1>
-            <p className="text-xs mb-8 text-center" style={{ color: "#64748b" }}>
-              Help us find the right match for you.
-            </p>
-            <div className="w-full max-w-lg space-y-10">
+            <h1 className="text-2xl sm:text-4xl font-black text-white mb-1 text-center">Who are you? 🙋</h1>
+            <p className="text-sm mb-6 text-center" style={{ color: "#64748b" }}>Help us find the right match.</p>
+            <div className="w-full max-w-lg space-y-8">
               <div>
-                <p className="text-sm font-black uppercase tracking-widest mb-4 text-center" style={{ color: "#e2e8f0", letterSpacing: "0.18em" }}>I AM A</p>
+                <p className="text-xs font-semibold uppercase tracking-wider mb-3 text-center" style={{ color: "#475569" }}>I am a</p>
                 <div className="grid grid-cols-3 gap-3">
                   {GENDERS.map(g => (
                     <button key={g.value} onClick={() => setGender(g.value)}
@@ -235,7 +211,7 @@ export default function Setup({ onDone }: Props) {
                 </div>
               </div>
               <div>
-                <p className="text-sm font-black uppercase tracking-widest mb-4 text-center" style={{ color: "#e2e8f0", letterSpacing: "0.18em" }}>I WANT TO CHAT WITH</p>
+                <p className="text-xs font-semibold uppercase tracking-wider mb-3 text-center" style={{ color: "#475569" }}>I want to chat with</p>
                 <div className="grid grid-cols-3 gap-3">
                   {PREFS.map(p => (
                     <button key={p.value} onClick={() => setPref(p.value)}
@@ -249,9 +225,9 @@ export default function Setup({ onDone }: Props) {
                 </div>
               </div>
             </div>
-            <div className="w-full max-w-lg mt-8">
+            <div className="w-full max-w-lg mt-6">
               <button onClick={next} disabled={!gender || !pref}
-                className="w-full py-4 rounded-2xl font-bold text-lg text-white grad-btn relative overflow-hidden group disabled:opacity-40 disabled:cursor-not-allowed"
+                className="w-full py-3.5 rounded-2xl font-bold text-base text-white grad-btn relative overflow-hidden group disabled:opacity-40 disabled:cursor-not-allowed"
                 style={{ boxShadow: "0 8px 32px rgba(99,102,241,0.45)" }}>
                 <span className="relative z-10">Continue →</span>
                 <span className="absolute inset-0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700"
@@ -264,11 +240,8 @@ export default function Setup({ onDone }: Props) {
         {/* STEP 2 */}
         {step === 2 && (
           <>
-            <p className="text-xs font-bold uppercase tracking-widest mb-2" style={{ color: "#64748b" }}>YOUR INTERESTS</p>
-            <h1 className="text-2xl sm:text-5xl font-black text-white mb-2 text-center">What's your thing? ✨</h1>
-            <p className="text-sm mb-6 text-center" style={{ color: "#64748b" }}>
-              Pick any — we'll match with people who share them.
-            </p>
+            <h1 className="text-2xl sm:text-4xl font-black text-white mb-1 text-center">What's your thing? ✨</h1>
+            <p className="text-sm mb-5 text-center" style={{ color: "#64748b" }}>Pick any — we'll match you with people who share them.</p>
             <div className="w-full max-w-2xl grid grid-cols-2 sm:grid-cols-4 gap-3">
               {INTERESTS.map(item => {
                 const sel = interests.includes(item.label);
@@ -292,11 +265,8 @@ export default function Setup({ onDone }: Props) {
         {/* STEP 3 */}
         {step === 3 && (
           <>
-            <p className="text-xs font-bold uppercase tracking-widest mb-2" style={{ color: "#64748b" }}>LANGUAGE PREFERENCE</p>
-            <h1 className="text-2xl sm:text-5xl font-black text-white mb-2 text-center">Speak my language 🗣️</h1>
-            <p className="text-sm mb-6 text-center" style={{ color: "#64748b" }}>
-              Pick one to match with people who speak it.
-            </p>
+            <h1 className="text-2xl sm:text-4xl font-black text-white mb-1 text-center">Speak my language 🗣️</h1>
+            <p className="text-sm mb-5 text-center" style={{ color: "#64748b" }}>Pick one to match with people who speak it.</p>
             <div className="w-full max-w-2xl grid grid-cols-2 sm:grid-cols-4 gap-3">
               {LANGUAGES.map(lang => {
                 const sel = languages.includes(lang.code);
@@ -320,11 +290,8 @@ export default function Setup({ onDone }: Props) {
         {/* STEP 4 */}
         {step === 4 && (
           <>
-            <p className="text-xs font-bold uppercase tracking-widest mb-2" style={{ color: "#64748b" }}>YOUR VIBE</p>
-            <h1 className="text-2xl sm:text-5xl font-black text-white mb-2 text-center">What's your mood? ✦</h1>
-            <p className="text-sm mb-6 text-center" style={{ color: "#64748b" }}>
-              Let strangers know your energy.
-            </p>
+            <h1 className="text-2xl sm:text-4xl font-black text-white mb-1 text-center">What's your mood? ✦</h1>
+            <p className="text-sm mb-5 text-center" style={{ color: "#64748b" }}>Let strangers know your energy.</p>
             <div className="w-full max-w-2xl grid grid-cols-2 sm:grid-cols-4 gap-3">
               {VIBES.map(vibe => {
                 const sel = vibes.includes(vibe.code);
