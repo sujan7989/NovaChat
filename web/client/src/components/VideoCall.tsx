@@ -31,6 +31,13 @@ export default function VideoCall({ localStream, remoteStream, callError, userId
   const [chatInput,  setChatInput]  = useState("");
   const [messages,   setMessages]   = useState<ChatMsg[]>([]);
   const [unread,     setUnread]     = useState(0);
+  const [isMobile,   setIsMobile]   = useState(() => window.innerWidth < 640);
+
+  useEffect(() => {
+    const handler = () => setIsMobile(window.innerWidth < 640);
+    window.addEventListener("resize", handler);
+    return () => window.removeEventListener("resize", handler);
+  }, []);
 
   useEffect(() => { setTimeout(() => setEntered(true), 30); }, []);
 
@@ -157,9 +164,9 @@ export default function VideoCall({ localStream, remoteStream, callError, userId
 
           {/* Local PiP */}
           <div onClick={() => setPip(p => !p)}
-            className="absolute bottom-5 right-5 rounded-2xl overflow-hidden shadow-2xl cursor-pointer transition-all hover:scale-105"
+            className="absolute bottom-4 right-4 rounded-2xl overflow-hidden shadow-2xl cursor-pointer transition-all hover:scale-105"
             style={{
-              width: pip ? "38%" : "150px", aspectRatio: "16/9",
+              width: pip ? "38%" : isMobile ? "28%" : "150px", aspectRatio: "16/9",
               border: "2px solid rgba(99,102,241,0.7)",
               boxShadow: "0 8px 32px rgba(0,0,0,0.6),0 0 0 1px rgba(99,102,241,0.2)",
             }}>
@@ -191,7 +198,7 @@ export default function VideoCall({ localStream, remoteStream, callError, userId
         </div>
 
         {/* Controls */}
-        <div className="shrink-0 flex items-center justify-center gap-4 py-4 px-4"
+        <div className="shrink-0 flex items-center justify-center gap-3 py-3 px-3 flex-wrap"
           style={{ background: "rgba(5,5,14,0.97)", backdropFilter: "blur(20px)", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
 
           {/* Mute */}
@@ -273,12 +280,16 @@ export default function VideoCall({ localStream, remoteStream, callError, userId
 
       {/* ── In-call chat panel ── */}
       <div style={{
-        width: chatOpen ? 300 : 0,
+        // Mobile: full-screen overlay. Desktop: side panel.
+        position: isMobile && chatOpen ? "fixed" : "relative",
+        inset: isMobile && chatOpen ? 0 : undefined,
+        zIndex: isMobile && chatOpen ? 60 : undefined,
+        width: isMobile ? (chatOpen ? "100%" : 0) : (chatOpen ? 300 : 0),
         minWidth: 0,
         overflow: "hidden",
         transition: "width 0.3s cubic-bezier(.16,1,.3,1)",
         background: "rgba(8,8,20,0.98)",
-        borderLeft: "1px solid rgba(99,102,241,0.2)",
+        borderLeft: !isMobile ? "1px solid rgba(99,102,241,0.2)" : "none",
         display: "flex",
         flexDirection: "column",
       }}>

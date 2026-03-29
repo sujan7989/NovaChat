@@ -215,7 +215,7 @@ export default function Setup({ onDone }: Props) {
         {step === 1 && (
           <>
             <p className="text-xs font-bold uppercase tracking-widest mb-2" style={{ color: "#64748b" }}>ABOUT YOU</p>
-            <h1 className="text-3xl sm:text-5xl font-black text-white mb-2 text-center">Who are you? 🙋</h1>
+            <h1 className="text-2xl sm:text-5xl font-black text-white mb-2 text-center">Who are you? 🙋</h1>
             <p className="text-xs mb-8 text-center" style={{ color: "#64748b" }}>
               Help us find the right match for you.
             </p>
@@ -225,7 +225,7 @@ export default function Setup({ onDone }: Props) {
                 <div className="grid grid-cols-3 gap-3">
                   {GENDERS.map(g => (
                     <button key={g.value} onClick={() => setGender(g.value)}
-                      className="relative flex flex-col items-center gap-2 py-5 rounded-2xl transition-all duration-200 hover:scale-105 active:scale-95"
+                      className="relative flex flex-col items-center gap-2 py-4 sm:py-5 rounded-2xl transition-all duration-200 hover:scale-105 active:scale-95"
                       style={cardStyle(gender === g.value)}>
                       {gender === g.value && <CheckBadge />}
                       <span className="text-4xl">{g.icon}</span>
@@ -239,7 +239,7 @@ export default function Setup({ onDone }: Props) {
                 <div className="grid grid-cols-3 gap-3">
                   {PREFS.map(p => (
                     <button key={p.value} onClick={() => setPref(p.value)}
-                      className="relative flex flex-col items-center gap-2 py-5 rounded-2xl transition-all duration-200 hover:scale-105 active:scale-95"
+                      className="relative flex flex-col items-center gap-2 py-4 sm:py-5 rounded-2xl transition-all duration-200 hover:scale-105 active:scale-95"
                       style={cardStyle(pref === p.value)}>
                       {pref === p.value && <CheckBadge />}
                       <span className="text-4xl">{p.icon}</span>
@@ -265,7 +265,7 @@ export default function Setup({ onDone }: Props) {
         {step === 2 && (
           <>
             <p className="text-xs font-bold uppercase tracking-widest mb-2" style={{ color: "#64748b" }}>YOUR INTERESTS</p>
-            <h1 className="text-3xl sm:text-5xl font-black text-white mb-2 text-center">What's your thing? ✨</h1>
+            <h1 className="text-2xl sm:text-5xl font-black text-white mb-2 text-center">What's your thing? ✨</h1>
             <p className="text-sm mb-6 text-center" style={{ color: "#64748b" }}>
               Pick any — we'll match with people who share them.
             </p>
@@ -274,7 +274,7 @@ export default function Setup({ onDone }: Props) {
                 const sel = interests.includes(item.label);
                 return (
                   <button key={item.label} onClick={() => setInterests(p => toggle(p, item.label))}
-                    className="relative flex flex-col items-center gap-2 py-5 rounded-2xl transition-all duration-200 hover:scale-105 active:scale-95"
+                    className="relative flex flex-col items-center gap-2 py-4 sm:py-5 rounded-2xl transition-all duration-200 hover:scale-105 active:scale-95"
                     style={cardStyle(sel)}>
                     {sel && <CheckBadge />}
                     <span className="text-3xl">{item.icon}</span>
@@ -293,7 +293,7 @@ export default function Setup({ onDone }: Props) {
         {step === 3 && (
           <>
             <p className="text-xs font-bold uppercase tracking-widest mb-2" style={{ color: "#64748b" }}>LANGUAGE PREFERENCE</p>
-            <h1 className="text-3xl sm:text-5xl font-black text-white mb-2 text-center">Speak my language 🗣️</h1>
+            <h1 className="text-2xl sm:text-5xl font-black text-white mb-2 text-center">Speak my language 🗣️</h1>
             <p className="text-sm mb-6 text-center" style={{ color: "#64748b" }}>
               Pick one to match with people who speak it.
             </p>
@@ -302,7 +302,7 @@ export default function Setup({ onDone }: Props) {
                 const sel = languages.includes(lang.code);
                 return (
                   <button key={lang.code} onClick={() => setLanguages(p => toggle(p, lang.code))}
-                    className="relative flex flex-col items-center gap-2 py-5 rounded-2xl transition-all duration-200 hover:scale-105 active:scale-95"
+                    className="relative flex flex-col items-center gap-2 py-4 sm:py-5 rounded-2xl transition-all duration-200 hover:scale-105 active:scale-95"
                     style={cardStyle(sel)}>
                     {sel && <CheckBadge />}
                     <span className="text-2xl font-black" style={{ color: sel ? "#c4b5fd" : "#94a3b8" }}>{lang.icon}</span>
@@ -321,7 +321,7 @@ export default function Setup({ onDone }: Props) {
         {step === 4 && (
           <>
             <p className="text-xs font-bold uppercase tracking-widest mb-2" style={{ color: "#64748b" }}>YOUR VIBE</p>
-            <h1 className="text-3xl sm:text-5xl font-black text-white mb-2 text-center">What's your mood? ✦</h1>
+            <h1 className="text-2xl sm:text-5xl font-black text-white mb-2 text-center">What's your mood? ✦</h1>
             <p className="text-sm mb-6 text-center" style={{ color: "#64748b" }}>
               Let strangers know your energy.
             </p>
@@ -330,7 +330,7 @@ export default function Setup({ onDone }: Props) {
                 const sel = vibes.includes(vibe.code);
                 return (
                   <button key={vibe.code} onClick={() => setVibes(p => toggle(p, vibe.code))}
-                    className="relative flex flex-col items-center gap-2 py-5 px-2 rounded-2xl transition-all duration-200 hover:scale-105 active:scale-95"
+                    className="relative flex flex-col items-center gap-2 py-4 sm:py-5 px-2 rounded-2xl transition-all duration-200 hover:scale-105 active:scale-95"
                     style={cardStyle(sel)}>
                     {sel && <CheckBadge />}
                     <span className="text-3xl">{vibe.icon}</span>

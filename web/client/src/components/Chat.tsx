@@ -353,14 +353,22 @@ export default function Chat({ profile, onStop }: Props) {
   return (
     <div className="h-full w-full flex relative" style={{ background: BG }}>
 
-      {/* Toast container */}
+      {/* Toast container — top-center on mobile, bottom-right on desktop */}
       <div style={{
-        position: "fixed", bottom: 24, right: 24, zIndex: 9999,
-        display: "flex", flexDirection: "column", gap: 8, alignItems: "flex-end",
+        position: "fixed",
+        bottom: isDesktop ? 24 : "auto",
+        top: isDesktop ? "auto" : 12,
+        right: isDesktop ? 24 : "50%",
+        transform: isDesktop ? "none" : "translateX(50%)",
+        zIndex: 9999,
+        display: "flex", flexDirection: "column", gap: 8,
+        alignItems: isDesktop ? "flex-end" : "center",
         pointerEvents: "none",
+        width: isDesktop ? "auto" : "calc(100vw - 32px)",
+        maxWidth: 360,
       }}>
         {toasts.map(t => (
-          <div key={t.id} style={{ pointerEvents: "auto" }}>
+          <div key={t.id} style={{ pointerEvents: "auto", width: "100%" }}>
             <ToastItem toast={t} onRemove={removeToast} />
           </div>
         ))}
@@ -559,32 +567,33 @@ export default function Chat({ profile, onStop }: Props) {
                 : "offline"}
             </p>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-1.5 shrink-0">
             {/* Skip button — always visible in header */}
             <button onClick={handleNext}
-              className="next-btn flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-black text-white relative overflow-hidden group transition-all hover:scale-105 active:scale-95">
-              <span className="relative z-10">⏭ Skip</span>
+              className="next-btn flex items-center gap-1 px-2.5 py-2 rounded-xl text-xs font-black text-white relative overflow-hidden group transition-all hover:scale-105 active:scale-95">
+              <span className="relative z-10 hidden sm:inline">⏭ Skip</span>
+              <span className="relative z-10 sm:hidden">⏭</span>
               <span className="absolute inset-0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700"
                 style={{ background:"linear-gradient(90deg,transparent,rgba(255,255,255,0.2),transparent)" }} />
             </button>
             <button onClick={() => { setShowVideo(true); startCall(); }}
-              className="w-10 h-10 rounded-xl flex items-center justify-center transition-all hover:scale-110"
+              className="w-9 h-9 rounded-xl flex items-center justify-center transition-all hover:scale-110"
               style={{ background:"rgba(99,102,241,0.15)", border:"1px solid rgba(99,102,241,0.35)" }}>
-              <svg className="w-5 h-5" style={{ color:"#818cf8" }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-4 h-4" style={{ color:"#818cf8" }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.069A1 1 0 0121 8.82v6.36a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
               </svg>
             </button>
             <button onClick={() => setShowReport(true)}
-              className="w-10 h-10 rounded-xl flex items-center justify-center transition-all hover:scale-110"
+              className="w-9 h-9 rounded-xl flex items-center justify-center transition-all hover:scale-110"
               style={{ background:"rgba(239,68,68,0.12)", border:"1px solid rgba(239,68,68,0.3)" }}>
-              <svg className="w-5 h-5" style={{ color:"#f87171" }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-4 h-4" style={{ color:"#f87171" }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 1H21l-3 6 3 6H10.5l-1-1H5a2 2 0 00-2 2zm9-13.5V9" />
               </svg>
             </button>
             <button onClick={handleStop}
-              className="w-10 h-10 rounded-xl flex items-center justify-center transition-all hover:scale-110"
+              className="w-9 h-9 rounded-xl flex items-center justify-center transition-all hover:scale-110"
               style={{ background:"rgba(100,116,139,0.12)", border:"1px solid rgba(100,116,139,0.3)" }}>
-              <svg className="w-5 h-5" style={{ color:"#94a3b8" }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-4 h-4" style={{ color:"#94a3b8" }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
               </svg>
             </button>
@@ -592,7 +601,7 @@ export default function Chat({ profile, onStop }: Props) {
         </div>
 
         {/* Messages */}
-        <div key={chatKey} className="flex-1 overflow-y-auto px-5 py-4 space-y-3 relative z-10" style={{ minHeight:0 }}>
+        <div key={chatKey} className="flex-1 overflow-y-auto px-3 sm:px-5 py-4 space-y-3 relative z-10" style={{ minHeight:0 }}>
 
           {/* Empty state while searching */}
           {status === "searching" && messages.length === 0 && (
@@ -638,7 +647,7 @@ export default function Chat({ profile, onStop }: Props) {
                   <p className="msg-time text-xs mt-1" style={{ color:"#334155" }}>{formatTime(msg.timestamp)}</p>
                 </div>
               ) : msg.from === "stranger" ? (
-                <div className="flex gap-2.5 max-w-xs lg:max-w-sm msg-stranger">
+                <div className="flex gap-2.5 max-w-[85vw] sm:max-w-xs lg:max-w-sm msg-stranger">
                   <div className="w-7 h-7 rounded-full flex items-center justify-center text-sm shrink-0 mt-5"
                     style={{ background:"linear-gradient(135deg,rgba(99,102,241,0.3),rgba(139,92,246,0.3))", border:"1px solid rgba(99,102,241,0.3)" }}>
                     👤
@@ -654,7 +663,7 @@ export default function Chat({ profile, onStop }: Props) {
                   </div>
                 </div>
               ) : (
-                <div className="max-w-xs lg:max-w-sm msg-me">
+                <div className="max-w-[85vw] sm:max-w-xs lg:max-w-sm msg-me">
                   <div className="flex items-center gap-2 justify-end mb-1">
                     <span className="text-xs font-semibold" style={{ color:"#818cf8" }}>You</span>
                   </div>
@@ -693,7 +702,7 @@ export default function Chat({ profile, onStop }: Props) {
         </div>
 
         {/* Input bar */}
-        <div className="shrink-0 px-4 py-3 relative z-10 mobile-safe-bottom"
+        <div className="shrink-0 px-3 sm:px-4 py-3 relative z-10 mobile-safe-bottom"
           style={{ borderTop:`1px solid ${BORDER}`, background:"rgba(255,255,255,0.01)" }}>
           {showEmoji && (
             <div className="mb-2 p-2 rounded-2xl flex flex-wrap gap-1.5"

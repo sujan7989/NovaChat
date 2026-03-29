@@ -283,7 +283,7 @@ export default function Landing({ onStart }: Props) {
           </span>
         </div>
 
-        <div className="mt-4 flex items-center gap-2" style={{ opacity: 0.3 }}>
+        <div className="mt-4 hidden sm:flex items-center gap-2" style={{ opacity: 0.3 }}>
           <div style={{ height: 1, width: 28, background: "rgba(255,255,255,0.2)" }} />
           <span style={{ fontSize: 10, color: "rgba(255,255,255,0.6)", letterSpacing: "0.12em", fontWeight: 500 }}>
             or press enter
