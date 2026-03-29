@@ -72,11 +72,16 @@ export function useWebRTC(userId: string) {
     };
 
     pc.ontrack = (e) => {
-      const stream = remoteStreamRef.current;
-      if (!stream.getTrackById(e.track.id)) {
-        stream.addTrack(e.track);
-        setRemoteStream(new MediaStream(stream.getTracks()));
+      const rs = remoteStreamRef.current;
+      if (!rs.getTrackById(e.track.id)) {
+        rs.addTrack(e.track);
       }
+      // Spread into a new MediaStream so React sees a new reference and re-renders,
+      // but all tracks come from the stable remoteStreamRef so srcObject stays consistent
+      setRemoteStream(prev => {
+        const next = new MediaStream(rs.getTracks());
+        return next;
+      });
       e.track.onunmute = () => {
         setRemoteStream(new MediaStream(remoteStreamRef.current.getTracks()));
       };

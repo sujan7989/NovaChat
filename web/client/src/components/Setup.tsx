@@ -145,7 +145,7 @@ export default function Setup({ onDone }: Props) {
   };
 
   const renderCTA = (onClick: () => void, onBack?: () => void) => (
-    <div className="w-full flex flex-col gap-2">
+    <div className="w-full flex flex-col gap-3">
       <button onClick={onClick}
         className="w-full py-3.5 rounded-2xl font-bold text-base text-white grad-btn relative overflow-hidden group"
         style={{ boxShadow: "0 8px 32px rgba(99,102,241,0.45)" }}>
@@ -153,12 +153,19 @@ export default function Setup({ onDone }: Props) {
         <span className="absolute inset-0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700"
           style={{ background: "linear-gradient(90deg,transparent,rgba(255,255,255,0.2),transparent)" }} />
       </button>
-      <div className="flex items-center justify-between px-1">
-        {onBack
-          ? <button onClick={onBack} className="text-sm font-medium transition-colors hover:text-slate-300" style={{ color: "#475569" }}>← Back</button>
-          : <span />
-        }
-        <button onClick={skip} className="text-sm font-medium transition-colors hover:text-slate-300" style={{ color: "#475569" }}>Skip →</button>
+      <div className="flex items-center gap-3">
+        {onBack && (
+          <button onClick={onBack}
+            className="flex-1 py-3 rounded-2xl font-semibold text-sm text-white transition-all hover:scale-105 active:scale-95"
+            style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.2)" }}>
+            ← Back
+          </button>
+        )}
+        <button onClick={skip}
+          className="flex-1 py-3 rounded-2xl font-semibold text-sm text-white transition-all hover:scale-105 active:scale-95"
+          style={{ background: "rgba(99,102,241,0.15)", border: "1px solid rgba(139,92,246,0.35)" }}>
+          Skip →
+        </button>
       </div>
     </div>
   );
@@ -197,7 +204,7 @@ export default function Setup({ onDone }: Props) {
             <p className="text-sm mb-6 text-center" style={{ color: "#64748b" }}>Help us find the right match.</p>
             <div className="w-full max-w-lg space-y-8">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wider mb-3 text-center" style={{ color: "#475569" }}>I am a</p>
+                <p className="text-sm font-bold mb-3 text-center" style={{ color: "#e2e8f0" }}>I am a</p>
                 <div className="grid grid-cols-3 gap-3">
                   {GENDERS.map(g => (
                     <button key={g.value} onClick={() => setGender(g.value)}
@@ -211,7 +218,7 @@ export default function Setup({ onDone }: Props) {
                 </div>
               </div>
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wider mb-3 text-center" style={{ color: "#475569" }}>I want to chat with</p>
+                <p className="text-sm font-bold mb-3 text-center" style={{ color: "#e2e8f0" }}>I want to chat with</p>
                 <div className="grid grid-cols-3 gap-3">
                   {PREFS.map(p => (
                     <button key={p.value} onClick={() => setPref(p.value)}

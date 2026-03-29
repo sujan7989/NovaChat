@@ -51,20 +51,20 @@ export default function VideoCall({ localStream, remoteStream, callError, userId
   useEffect(() => {
     const video = remoteRef.current;
     if (!video || !remoteStream) return;
-    if (video.srcObject !== remoteStream) {
-      video.srcObject = remoteStream;
-      video.play().catch(() => {});
-    }
+    // Always reassign — tracks may have been added after initial assignment
+    video.srcObject = remoteStream;
+    video.play().catch(() => {});
   }, [remoteStream]);
 
-  // Extra: poll every second to force play if video is paused/stuck
+  // Aggressively retry play every 800ms until video is actually playing
   useEffect(() => {
     const interval = setInterval(() => {
       const video = remoteRef.current;
-      if (video && video.srcObject && video.paused) {
+      if (!video || !video.srcObject) return;
+      if (video.paused || video.readyState < 2) {
         video.play().catch(() => {});
       }
-    }, 1000);
+    }, 800);
     return () => clearInterval(interval);
   }, []);
 
@@ -131,6 +131,8 @@ export default function VideoCall({ localStream, remoteStream, callError, userId
         {/* Remote video */}
         <div className="flex-1 relative overflow-hidden" style={{ background: "radial-gradient(ellipse at 50% 50%,#0d0820 0%,#000 100%)" }}>
           <video ref={remoteRef} autoPlay playsInline
+            onLoadedMetadata={e => { (e.target as HTMLVideoElement).play().catch(() => {}); }}
+            onCanPlay={e => { (e.target as HTMLVideoElement).play().catch(() => {}); }}
             className="w-full h-full" style={{ objectFit: "cover", background: "#000" }} />
 
           {!remoteStream && (
