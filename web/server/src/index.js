@@ -31,44 +31,23 @@ app.get("/api/health", (req, res) => {
 
 // ICE servers endpoint — provides STUN + TURN config to clients
 app.get("/api/ice-servers", async (req, res) => {
-  // Try to get fresh credentials from Metered API if key is configured
-  const meteredApiKey = process.env.METERED_API_KEY;
-  if (meteredApiKey) {
-    try {
-      const r = await fetch(`https://novachat.metered.live/api/v1/turn/credentials?apiKey=${meteredApiKey}`);
-      if (r.ok) {
-        const servers = await r.json();
-        return res.json({ iceServers: servers });
-      }
-    } catch {}
-  }
+  const meteredApiKey = process.env.METERED_API_KEY || "69f57cbf10ab206b2d71df7551a8387fc9af";
+  try {
+    const r = await fetch(`https://novachat-app.metered.live/api/v1/turn/credentials?apiKey=${meteredApiKey}`);
+    if (r.ok) {
+      const servers = await r.json();
+      return res.json({ iceServers: servers });
+    }
+  } catch {}
 
-  // Fallback: OpenRelay (free, no account, reliable) + Google STUN
+  // Fallback if Metered API is unreachable
   res.json({
     iceServers: [
       { urls: "stun:stun.l.google.com:19302" },
       { urls: "stun:stun1.l.google.com:19302" },
-      // OpenRelay — free TURN, no credentials needed, maintained by Metered
-      {
-        urls: "turn:openrelay.metered.ca:80",
-        username: "openrelayproject",
-        credential: "openrelayproject",
-      },
-      {
-        urls: "turn:openrelay.metered.ca:443",
-        username: "openrelayproject",
-        credential: "openrelayproject",
-      },
-      {
-        urls: "turn:openrelay.metered.ca:443?transport=tcp",
-        username: "openrelayproject",
-        credential: "openrelayproject",
-      },
-      {
-        urls: "turn:openrelay.metered.ca:80?transport=tcp",
-        username: "openrelayproject",
-        credential: "openrelayproject",
-      },
+      { urls: "turn:openrelay.metered.ca:80", username: "openrelayproject", credential: "openrelayproject" },
+      { urls: "turn:openrelay.metered.ca:443", username: "openrelayproject", credential: "openrelayproject" },
+      { urls: "turn:openrelay.metered.ca:443?transport=tcp", username: "openrelayproject", credential: "openrelayproject" },
     ],
   });
 });
