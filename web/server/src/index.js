@@ -30,40 +30,44 @@ app.get("/api/health", (req, res) => {
 });
 
 // ICE servers endpoint — provides STUN + TURN config to clients
-app.get("/api/ice-servers", (req, res) => {
+app.get("/api/ice-servers", async (req, res) => {
+  // Try to get fresh credentials from Metered API if key is configured
+  const meteredApiKey = process.env.METERED_API_KEY;
+  if (meteredApiKey) {
+    try {
+      const r = await fetch(`https://novachat.metered.live/api/v1/turn/credentials?apiKey=${meteredApiKey}`);
+      if (r.ok) {
+        const servers = await r.json();
+        return res.json({ iceServers: servers });
+      }
+    } catch {}
+  }
+
+  // Fallback: OpenRelay (free, no account, reliable) + Google STUN
   res.json({
     iceServers: [
       { urls: "stun:stun.l.google.com:19302" },
       { urls: "stun:stun1.l.google.com:19302" },
-      { urls: "stun:stun2.l.google.com:19302" },
-      { urls: "stun:stun3.l.google.com:19302" },
-      { urls: "stun:stun4.l.google.com:19302" },
-      // Metered TURN
+      // OpenRelay — free TURN, no credentials needed, maintained by Metered
       {
-        urls: "turn:a.relay.metered.ca:80",
-        username: "cc70a4c28c13a5c8d3535194",
-        credential: "9HU0i9bnPbBhNr2O",
+        urls: "turn:openrelay.metered.ca:80",
+        username: "openrelayproject",
+        credential: "openrelayproject",
       },
       {
-        urls: "turn:a.relay.metered.ca:80?transport=tcp",
-        username: "cc70a4c28c13a5c8d3535194",
-        credential: "9HU0i9bnPbBhNr2O",
+        urls: "turn:openrelay.metered.ca:443",
+        username: "openrelayproject",
+        credential: "openrelayproject",
       },
       {
-        urls: "turn:a.relay.metered.ca:443",
-        username: "cc70a4c28c13a5c8d3535194",
-        credential: "9HU0i9bnPbBhNr2O",
+        urls: "turn:openrelay.metered.ca:443?transport=tcp",
+        username: "openrelayproject",
+        credential: "openrelayproject",
       },
       {
-        urls: "turn:a.relay.metered.ca:443?transport=tcp",
-        username: "cc70a4c28c13a5c8d3535194",
-        credential: "9HU0i9bnPbBhNr2O",
-      },
-      // Backup TURN - numb.viagenie.ca (free, no auth)
-      {
-        urls: "turn:numb.viagenie.ca",
-        username: "webrtc@live.com",
-        credential: "muazkh",
+        urls: "turn:openrelay.metered.ca:80?transport=tcp",
+        username: "openrelayproject",
+        credential: "openrelayproject",
       },
     ],
   });

@@ -4,18 +4,21 @@ import socket from "./socket";
 const SOCKET_URL = import.meta.env.VITE_API_URL || "https://novachat-production-57d2.up.railway.app";
 
 async function getIceServers(): Promise<RTCIceServer[]> {
-  const base: RTCIceServer[] = [
+  const openRelay: RTCIceServer[] = [
     { urls: "stun:stun.l.google.com:19302" },
     { urls: "stun:stun1.l.google.com:19302" },
-    { urls: "stun:stun2.l.google.com:19302" },
+    { urls: "turn:openrelay.metered.ca:80", username: "openrelayproject", credential: "openrelayproject" },
+    { urls: "turn:openrelay.metered.ca:443", username: "openrelayproject", credential: "openrelayproject" },
+    { urls: "turn:openrelay.metered.ca:443?transport=tcp", username: "openrelayproject", credential: "openrelayproject" },
+    { urls: "turn:openrelay.metered.ca:80?transport=tcp", username: "openrelayproject", credential: "openrelayproject" },
   ];
   try {
     const res = await fetch(`${SOCKET_URL}/api/ice-servers`);
     if (!res.ok) throw new Error();
     const data = await res.json();
-    return data.iceServers || base;
+    return data.iceServers?.length ? data.iceServers : openRelay;
   } catch {
-    return base;
+    return openRelay;
   }
 }
 
@@ -62,7 +65,13 @@ export function useWebRTC(userId: string) {
     remoteStreamRef.current = new MediaStream();
 
     const iceServers = await getIceServers();
-    const pc = new RTCPeerConnection({ iceServers, iceCandidatePoolSize: 10 });
+    const pc = new RTCPeerConnection({
+      iceServers,
+      iceCandidatePoolSize: 10,
+      // bundlePolicy and rtcpMuxPolicy improve mobile compatibility
+      bundlePolicy: "max-bundle",
+      rtcpMuxPolicy: "require",
+    });
 
     // Add local tracks
     stream.getTracks().forEach(t => pc.addTrack(t, stream));
