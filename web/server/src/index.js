@@ -14,9 +14,9 @@ const httpServer = createServer(app);
 const io = new Server(httpServer, {
   cors: { origin: "*", methods: ["GET", "POST"] },
   maxHttpBufferSize: 6 * 1024 * 1024,
-  pingTimeout: 120000,   // 2 min — handles mobile network switches
-  pingInterval: 30000,   // ping every 30s
-  connectTimeout: 45000,
+  pingTimeout: 20000,    // 20s — detect dead connections faster
+  pingInterval: 15000,   // ping every 15s
+  connectTimeout: 30000,
   transports: ["websocket", "polling"],
 });
 
@@ -75,7 +75,15 @@ app.get("/api/stats", async (req, res) => {
 });
 
 process.on("SIGTERM", () => { httpServer.close(() => process.exit(0)); });
-process.on("SIGINT", () => { httpServer.close(() => process.exit(0)); });
+process.on("SIGINT",  () => { httpServer.close(() => process.exit(0)); });
+
+// Prevent unhandled promise rejections from crashing the server
+process.on("unhandledRejection", (reason) => {
+  logger.error(`Unhandled rejection: ${reason}`);
+});
+process.on("uncaughtException", (err) => {
+  logger.error(`Uncaught exception: ${err.message}`);
+});
 
 async function boot() {
   try {

@@ -20,4 +20,12 @@ setInterval(() => {
   fetch(`${URL}/api/health`).catch(() => {});
 }, 25000);
 
+// On mobile, browser may kill the socket when tab goes to background.
+// Reconnect as soon as the tab becomes visible again.
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible" && !socket.connected) {
+    socket.connect();
+  }
+});
+
 export default socket;

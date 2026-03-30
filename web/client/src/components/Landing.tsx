@@ -102,7 +102,7 @@ export default function Landing({ onStart }: Props) {
     return () => {
       clearInterval(iv);
       socket.off("online_count");
-      socket.disconnect();
+      // Don't disconnect — keep socket alive for the transition to Chat
     };
   }, []);
 
