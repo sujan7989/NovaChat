@@ -24,7 +24,13 @@ async function getIceServers(): Promise<RTCIceServer[]> {
 
 async function getStream(): Promise<MediaStream> {
   const attempts: MediaStreamConstraints[] = [
-    { video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: "user" }, audio: true },
+    // Try 1080p first
+    { video: { width: { ideal: 1920 }, height: { ideal: 1080 }, facingMode: "user", frameRate: { ideal: 30 } }, audio: true },
+    // Fall back to 720p
+    { video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: "user", frameRate: { ideal: 30 } }, audio: true },
+    // Fall back to 480p
+    { video: { width: { ideal: 854 }, height: { ideal: 480 }, facingMode: "user" }, audio: true },
+    // Last resort — let browser decide
     { video: true, audio: true },
   ];
   for (const c of attempts) {
@@ -75,6 +81,22 @@ export function useWebRTC(userId: string) {
 
     // Add local tracks
     stream.getTracks().forEach(t => pc.addTrack(t, stream));
+
+    // Request high quality video encoding
+    pc.onsignalingstatechange = () => {
+      if (pc.signalingState === "stable") {
+        pc.getSenders().forEach(sender => {
+          if (sender.track?.kind === "video") {
+            const params = sender.getParameters();
+            if (params.encodings?.length) {
+              params.encodings[0].maxBitrate = 2_500_000; // 2.5 Mbps
+              params.encodings[0].maxFramerate = 30;
+              sender.setParameters(params).catch(() => {});
+            }
+          }
+        });
+      }
+    };
 
     pc.onicecandidate = ({ candidate }) => {
       if (candidate) socket.emit("webrtc:ice", { userId, candidate });

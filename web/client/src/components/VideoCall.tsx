@@ -133,7 +133,7 @@ export default function VideoCall({ localStream, remoteStream, callError, userId
           <video ref={remoteRef} autoPlay playsInline
             onLoadedMetadata={e => { (e.target as HTMLVideoElement).play().catch(() => {}); }}
             onCanPlay={e => { (e.target as HTMLVideoElement).play().catch(() => {}); }}
-            className="w-full h-full" style={{ objectFit: "cover", background: "#000" }} />
+            className="w-full h-full" style={{ objectFit: "cover", background: "#000", imageRendering: "auto" }} />
 
           {!remoteStream && (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-5"
