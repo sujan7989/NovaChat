@@ -10,13 +10,14 @@ interface Props {
   callError: string | null;
   userId: string;
   onEnd: () => void;
+  onNext?: () => void;
 }
 
 function formatTime(ts: number) {
   return new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
-export default function VideoCall({ localStream, remoteStream, callError, userId, onEnd }: Props) {
+export default function VideoCall({ localStream, remoteStream, callError, userId, onEnd, onNext }: Props) {
   const localRef  = useRef<HTMLVideoElement>(null);
   const remoteRef = useRef<HTMLVideoElement>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -32,6 +33,7 @@ export default function VideoCall({ localStream, remoteStream, callError, userId
   const [messages,   setMessages]   = useState<ChatMsg[]>([]);
   const [unread,     setUnread]     = useState(0);
   const [isMobile,   setIsMobile]   = useState(() => window.innerWidth < 640);
+  const [strangerTyping, setStrangerTyping] = useState(false);
 
   useEffect(() => {
     const handler = () => setIsMobile(window.innerWidth < 640);
@@ -73,9 +75,15 @@ export default function VideoCall({ localStream, remoteStream, callError, userId
     const handler = ({ text }: { text: string }) => {
       setMessages(p => [...p, { id: uuidv4(), from: "stranger", text, ts: Date.now() }]);
       if (!chatOpen) setUnread(u => u + 1);
+      setStrangerTyping(false);
     };
+    const typingHandler = ({ isTyping }: { isTyping: boolean }) => setStrangerTyping(isTyping);
     socket.on("videochat:message", handler);
-    return () => { socket.off("videochat:message", handler); };
+    socket.on("videochat:typing", typingHandler);
+    return () => {
+      socket.off("videochat:message", handler);
+      socket.off("videochat:typing", typingHandler);
+    };
   }, [chatOpen]);
 
   useEffect(() => {
@@ -89,13 +97,25 @@ export default function VideoCall({ localStream, remoteStream, callError, userId
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const sendChat = useCallback(() => {
     const text = chatInput.trim();
     if (!text) return;
     socket.emit("videochat:message", { userId, text });
+    socket.emit("videochat:typing", { userId, isTyping: false });
     setMessages(p => [...p, { id: uuidv4(), from: "me", text, ts: Date.now() }]);
     setChatInput("");
   }, [chatInput, userId]);
+
+  const handleChatTyping = (val: string) => {
+    setChatInput(val);
+    socket.emit("videochat:typing", { userId, isTyping: true });
+    if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
+    typingTimerRef.current = setTimeout(() => {
+      socket.emit("videochat:typing", { userId, isTyping: false });
+    }, 1500);
+  };
 
   const toggleMute = () => {
     localStream?.getAudioTracks().forEach(t => { t.enabled = muted; });
@@ -228,6 +248,16 @@ export default function VideoCall({ localStream, remoteStream, callError, userId
             </svg>
           </button>
 
+          {/* Next stranger — end call + skip */}
+          <button onClick={() => { onEnd(); onNext?.(); }}
+            className="w-12 h-12 rounded-2xl flex items-center justify-center transition-all hover:scale-110 active:scale-95"
+            style={{ background: "rgba(99,102,241,0.2)", border: "1px solid rgba(99,102,241,0.4)" }}
+            title="Next stranger">
+            <svg className="w-5 h-5" style={{ color: "#a5b4fc" }} fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z" clipRule="evenodd" />
+            </svg>
+          </button>
+
           {/* Camera */}
           <button onClick={toggleCam}
             className="w-12 h-12 rounded-2xl flex items-center justify-center transition-all hover:scale-110 active:scale-95"
@@ -330,6 +360,13 @@ export default function VideoCall({ localStream, remoteStream, callError, userId
               <span style={{ color: "#334155", fontSize: 10, marginTop: 2, paddingLeft: 4, paddingRight: 4 }}>{formatTime(msg.ts)}</span>
             </div>
           ))}
+          {strangerTyping && (
+            <div style={{ display: "flex", gap: 4, alignItems: "center", paddingLeft: 4 }}>
+              {[0,1,2].map(i => (
+                <div key={i} className="typing-dot rounded-full" style={{ width: 6, height: 6, background: "#818cf8", animationDelay: `${i * 0.2}s` }} />
+              ))}
+            </div>
+          )}
           <div ref={chatEndRef} />
         </div>
 
@@ -338,7 +375,7 @@ export default function VideoCall({ localStream, remoteStream, callError, userId
           <input
             ref={chatInputRef}
             value={chatInput}
-            onChange={e => setChatInput(e.target.value)}
+            onChange={e => handleChatTyping(e.target.value)}
             onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendChat(); } }}
             placeholder="Type a message..."
             maxLength={500}

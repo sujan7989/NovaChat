@@ -1,5 +1,4 @@
-import { useEffect, useState, useRef } from "react";
-import socket from "../socket";
+import { useEffect, useState, useRef } from "react";import socket from "../socket";
 
 interface Props {
   onStart: () => void;
@@ -13,59 +12,62 @@ function frac(s: number) {
 }
 
 function DeepSpaceBg() {
-  const stars = Array.from({ length: 340 }, (_, i) => {
-    let s = lcg(i + 7);
-    const x = frac(s) * 100; s = lcg(s);
-    const y = frac(s) * 100; s = lcg(s);
-    const size = frac(s) * 2.2 + 0.3; s = lcg(s);
-    const opacity = frac(s) * 0.7 + 0.15; s = lcg(s);
-    const dur = frac(s) * 5 + 2; s = lcg(s);
-    const delay = frac(s) * 9;
-    const colors = ["#ffffff","#f9a8d4","#e879f9","#c084fc","#ffffff","#f472b6","#ffffff","#d8b4fe","#ffffff","#fb7185"];
-    return { x, y, size, opacity, dur, delay, color: colors[i % colors.length] };
-  });
+  const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  const meteors = Array.from({ length: 8 }, (_, i) => {
-    let s = lcg((i + 1) * 113);
-    const top = frac(s) * 60; s = lcg(s);
-    const left = frac(s) * 75; s = lcg(s);
-    const delay = frac(s) * 14 + i * 2.5;
-    const dur = frac(lcg(s)) * 1.2 + 1.0;
-    return { top, left, delay, dur };
-  });
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    let animId: number;
+    const colors = ["#ffffff","#f9a8d4","#e879f9","#c084fc","#f472b6","#d8b4fe","#fb7185"];
+
+    // Build star data once
+    const stars = Array.from({ length: 280 }, (_, i) => {
+      let s = lcg(i + 7);
+      const x = frac(s) * 1; s = lcg(s);
+      const y = frac(s) * 1; s = lcg(s);
+      const size = frac(s) * 1.8 + 0.3; s = lcg(s);
+      const baseOpacity = frac(s) * 0.6 + 0.15; s = lcg(s);
+      const speed = frac(s) * 0.008 + 0.003;
+      const phase = frac(lcg(s)) * Math.PI * 2;
+      return { x, y, size, baseOpacity, speed, phase, color: colors[i % colors.length] };
+    });
+
+    const resize = () => {
+      canvas.width = canvas.offsetWidth;
+      canvas.height = canvas.offsetHeight;
+    };
+    resize();
+    window.addEventListener("resize", resize);
+
+    let t = 0;
+    const draw = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      t += 0.016;
+      for (const star of stars) {
+        const opacity = star.baseOpacity * (0.5 + 0.5 * Math.sin(t * star.speed * 60 + star.phase));
+        ctx.beginPath();
+        ctx.arc(star.x * canvas.width, star.y * canvas.height, star.size, 0, Math.PI * 2);
+        ctx.fillStyle = star.color;
+        ctx.globalAlpha = opacity;
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+      animId = requestAnimationFrame(draw);
+    };
+    draw();
+
+    return () => {
+      cancelAnimationFrame(animId);
+      window.removeEventListener("resize", resize);
+    };
+  }, []);
 
   return (
     <div className="absolute inset-0 overflow-hidden pointer-events-none">
-      {stars.map((s, i) => (
-        <div
-          key={i}
-          className="absolute rounded-full"
-          style={{
-            left: `${s.x}%`,
-            top: `${s.y}%`,
-            width: `${s.size}px`,
-            height: `${s.size}px`,
-            background: s.color,
-            opacity: s.opacity,
-            animation: `starTwinkle ${s.dur}s ease-in-out ${s.delay}s infinite`,
-          }}
-        />
-      ))}
-      {meteors.map((m, i) => (
-        <div
-          key={`m${i}`}
-          className="absolute"
-          style={{
-            top: `${m.top}%`,
-            left: `${m.left}%`,
-            height: "1.5px",
-            width: 0,
-            background: "linear-gradient(90deg,rgba(255,255,255,0) 0%,rgba(240,160,255,0.95) 50%,white 100%)",
-            animation: `shootingStar ${m.dur}s ease-out ${m.delay}s infinite`,
-            transformOrigin: "left center",
-          }}
-        />
-      ))}
+      <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" />
       <div className="absolute" style={{ top: "-5%", left: "-5%", width: 700, height: 700, background: "radial-gradient(circle,rgba(130,40,200,0.4) 0%,rgba(90,20,160,0.15) 30%,rgba(60,10,120,0.05) 60%,transparent 100%)", filter: "blur(60px)", animation: "auroraShift 24s ease-in-out infinite" }} />
       <div className="absolute" style={{ top: "10%", right: "-8%", width: 600, height: 600, background: "radial-gradient(circle,rgba(200,30,140,0.35) 0%,rgba(160,20,120,0.12) 35%,rgba(100,10,80,0.03) 65%,transparent 100%)", filter: "blur(65px)", animation: "auroraShift2 20s ease-in-out infinite" }} />
       <div className="absolute" style={{ bottom: "0%", left: "5%", width: 500, height: 500, background: "radial-gradient(circle,rgba(110,30,190,0.3) 0%,rgba(80,10,150,0.1) 40%,rgba(40,5,100,0.02) 70%,transparent 100%)", filter: "blur(55px)", animation: "auroraShift 30s ease-in-out 8s infinite" }} />

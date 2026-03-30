@@ -240,7 +240,8 @@ export default function Chat({ profile, onStop }: Props) {
     socket.on("stranger_left", () => {
       setStatus("stopped"); cleanup(); setShowVideo(false);
       addMsg({ from: "stranger", type: "text", text: "👻 Stranger has left the chat." });
-      setShowRating(true);
+      // Delay rating modal by 1.5s — feels more natural
+      setTimeout(() => setShowRating(true), 1500);
       // Send messages to server for AI summary
       socket.emit("submit_for_summary", { userId: profile.userId, messages: messages });
     });
@@ -344,6 +345,10 @@ export default function Chat({ profile, onStop }: Props) {
 
   const isSystem = (text?: string) =>
     !!text && ["👋","🎯","👻","✅","⚠️"].some(p => text.startsWith(p));
+
+  const copyMsg = (text: string) => {
+    navigator.clipboard.writeText(text).then(() => showToast("Copied!", "success")).catch(() => {});
+  };
 
   const BG = "radial-gradient(ellipse at 60% 40%, #0d0820 0%, #07070f 60%, #040410 100%)";
   const PANEL_BG = "#0d0d1a";
@@ -640,7 +645,8 @@ export default function Chat({ profile, onStop }: Props) {
                     <p className="text-xs font-semibold mb-1" style={{ color:"#818cf8" }}>Stranger</p>
                     <div className="px-4 py-2.5 rounded-2xl text-sm leading-relaxed"
                       style={{ background:"rgba(99,102,241,0.15)", color:"#e2e8f0", borderBottomLeftRadius:6, border:"1px solid rgba(99,102,241,0.2)" }}
-                      dir="ltr">
+                      dir="ltr"
+                      onContextMenu={e => { e.preventDefault(); if (msg.text) copyMsg(msg.text); }}>
                       {msg.text}
                     </div>
                     <p className="msg-time text-xs mt-1" style={{ color:"#334155" }}>{formatTime(msg.timestamp)}</p>
@@ -653,7 +659,8 @@ export default function Chat({ profile, onStop }: Props) {
                   </div>
                   <div className="px-4 py-2.5 rounded-2xl text-sm leading-relaxed"
                     style={{ background:"linear-gradient(135deg,#6366f1,#8b5cf6)", color:"white", borderBottomRightRadius:6, boxShadow:"0 4px 16px rgba(99,102,241,0.35)" }}
-                    dir="ltr">
+                    dir="ltr"
+                    onContextMenu={e => { e.preventDefault(); if (msg.text) copyMsg(msg.text); }}>
                     {msg.text}
                   </div>
                   <p className="msg-time text-xs mt-1 text-right flex items-center justify-end gap-1" style={{ color:"#334155" }}>
@@ -687,7 +694,7 @@ export default function Chat({ profile, onStop }: Props) {
 
         {/* Input bar */}
         <div className="shrink-0 px-3 sm:px-4 py-3 relative z-10 mobile-safe-bottom"
-          style={{ borderTop:`1px solid ${BORDER}`, background:"rgba(255,255,255,0.01)" }}>
+          style={{ borderTop:`1px solid ${BORDER}`, background:"rgba(255,255,255,0.01)", opacity: status === "stopped" ? 0.45 : 1, transition: "opacity 0.3s" }}>
           {showEmoji && (
             <div className="mb-2 p-2 rounded-2xl flex flex-wrap gap-1.5"
               style={{ background:"rgba(10,10,25,0.98)", border:`1px solid ${BORDER}`, backdropFilter:"blur(20px)" }}>
@@ -764,7 +771,8 @@ export default function Chat({ profile, onStop }: Props) {
       {showVideo && (
         <VideoCall localStream={localStream} remoteStream={remoteStream} callError={callError}
           userId={profile.userId}
-          onEnd={() => { endCall(); setShowVideo(false); }} />
+          onEnd={() => { endCall(); setShowVideo(false); }}
+          onNext={() => { endCall(); setShowVideo(false); handleNext(); }} />
       )}
 
       {/* Rating modal */}

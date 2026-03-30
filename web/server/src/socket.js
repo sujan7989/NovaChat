@@ -236,6 +236,16 @@ export function initSocket(io) {
       }
     });
 
+    socket.on("videochat:typing", async (payload) => {
+      if (!payload?.userId) return;
+      try {
+        const partnerId = await getStore().getPartner(payload.userId);
+        if (!partnerId) return;
+        const ps = userToSocket.get(partnerId);
+        if (ps) io.to(ps).emit("videochat:typing", { isTyping: !!payload.isTyping });
+      } catch {}
+    });
+
     socket.on("webrtc:offer", async (payload) => {
       const validation = validateWebRTCPayload(payload);
       if (validation.error) return;
@@ -461,4 +471,24 @@ export function initSocket(io) {
       logger.error(`Socket error for ${socket.id}: ${err.message}`);
     });
   });
+
+  // Periodic cleanup — remove ghost queue entries every 2 minutes
+  setInterval(async () => {
+    try {
+      const s = getStore();
+      // For each userId in the queue, check if their socket is still alive
+      // memstore expiry handles this already; for redis we rely on the 5-min TTL
+      // This loop cleans up userToSocket entries for dead sockets
+      for (const [userId, socketId] of userToSocket.entries()) {
+        if (!io.sockets.sockets.has(socketId)) {
+          logger.info(`Cleanup: removing ghost mapping for ${userId}`);
+          userToSocket.delete(userId);
+          socketToUser.delete(socketId);
+          await s.removeFromQueue(userId).catch(() => {});
+        }
+      }
+    } catch (err) {
+      logger.error(`Cleanup error: ${err.message}`);
+    }
+  }, 120_000);
 }
