@@ -53,20 +53,26 @@ export default function VideoCall({ localStream, remoteStream, callError, userId
   useEffect(() => {
     const video = remoteRef.current;
     if (!video || !remoteStream) return;
-    // Always reassign — tracks may have been added after initial assignment
-    video.srcObject = remoteStream;
-    video.play().catch(() => {});
+    // Only reassign srcObject if it changed — avoids interrupting active playback
+    if (video.srcObject !== remoteStream) {
+      video.srcObject = remoteStream;
+    }
+    const tryPlay = () => video.play().catch(() => {});
+    tryPlay();
+    const onAddTrack = () => tryPlay();
+    remoteStream.addEventListener("addtrack", onAddTrack);
+    return () => remoteStream.removeEventListener("addtrack", onAddTrack);
   }, [remoteStream]);
 
-  // Aggressively retry play every 800ms until video is actually playing
+  // Retry play every 600ms — handles autoplay policy blocks and muted tracks
   useEffect(() => {
     const interval = setInterval(() => {
       const video = remoteRef.current;
-      if (!video || !video.srcObject) return;
-      if (video.paused || video.readyState < 2) {
+      if (!video) return;
+      if (video.srcObject && (video.paused || video.readyState < 3)) {
         video.play().catch(() => {});
       }
-    }, 800);
+    }, 600);
     return () => clearInterval(interval);
   }, []);
 

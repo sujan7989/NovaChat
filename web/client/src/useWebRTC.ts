@@ -48,6 +48,9 @@ export function useWebRTC(userId: string) {
   const [localStream,  setLocalStream]  = useState<MediaStream | null>(null);
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
   const [callError,    setCallError]    = useState<string | null>(null);
+  // Counter to force re-render when remote stream tracks change
+  const [, setRemoteTick] = useState(0);
+  const forceRemoteUpdate = () => setRemoteTick(n => n + 1);
 
   const cleanup = useCallback(() => {
     pcRef.current?.close();
@@ -107,12 +110,12 @@ export function useWebRTC(userId: string) {
       if (!rs.getTrackById(e.track.id)) {
         rs.addTrack(e.track);
       }
-      // Spread into a new MediaStream so React sees a new reference and re-renders,
-      // but all tracks come from the stable remoteStreamRef so srcObject stays consistent
-      setRemoteStream(new MediaStream(rs.getTracks()));
-      e.track.onunmute = () => {
-        setRemoteStream(new MediaStream(remoteStreamRef.current.getTracks()));
-      };
+      // Set the stable stream ref once — VideoCall assigns it to srcObject
+      setRemoteStream(rs);
+      forceRemoteUpdate();
+      // When track unmutes (video starts flowing), nudge the video element to play
+      e.track.onunmute = () => forceRemoteUpdate();
+      e.track.onended  = () => forceRemoteUpdate();
     };
 
     pc.onconnectionstatechange = () => {
