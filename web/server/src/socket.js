@@ -42,10 +42,10 @@ function makeRateLimiter() {
 }
 
 let _io = null;
-let onlineChatters = new Set(); // Track users actually chatting
 
 export function getOnlineCount() {
-  return onlineChatters.size; // Only count users actually chatting
+  // Count all connected sockets — accurate real-time count
+  return _io ? _io.sockets.sockets.size : 0;
 }
 
 export function getSocketStats() {
@@ -56,14 +56,17 @@ export function getSocketStats() {
   };
 }
 
+function broadcastOnlineCount() {
+  if (_io) _io.emit("online_count", { count: getOnlineCount() });
+}
 export function initSocket(io) {
   _io = io;
   io.on("connection", (socket) => {
     logger.info(`Connected: ${socket.id} from ${socket.handshake.address}`);
     const msgRateOk = makeRateLimiter();
 
-    socket.emit("online_count", { count: onlineChatters.size });
-    socket.broadcast.emit("online_count", { count: onlineChatters.size });
+    // Broadcast updated count to everyone
+    broadcastOnlineCount();
 
     socket.on("find", async (payload) => {
       const validation = validateFindPayload(payload);
@@ -75,13 +78,25 @@ export function initSocket(io) {
 
       const { userId, gender, pref, interests, languages, vibes } = validation.data;
 
-      // Add user to online chatters when they start finding a match
-      onlineChatters.add(userId);
+      // Handle reconnect: if this userId already maps to a different (stale) socket, clean it up
+      const existingSocketId = userToSocket.get(userId);
+      if (existingSocketId && existingSocketId !== socket.id) {
+        socketToUser.delete(existingSocketId);
+        logger.info(`Cleaned stale socket mapping for ${userId}`);
+      }
+
       socketToUser.set(socket.id, userId);
       userToSocket.set(userId, socket.id);
       logger.info(`Find request: ${userId} (gender=${gender}, pref=${pref})`);
 
       try {
+        // Clear any stale session from a previous connection before finding a new match
+        const stalePartner = await getStore().getPartner(userId);
+        if (stalePartner) {
+          await disconnectUser(userId);
+          logger.info(`Cleared stale session for ${userId} (was paired with ${stalePartner})`);
+        }
+
         const match = await findOrQueue(userId, gender, pref, interests, languages, vibes);
         if (match) {
           const partnerSocket = userToSocket.get(match.partnerId);
@@ -342,7 +357,6 @@ export function initSocket(io) {
           logger.info(`User ${userId} stopped chat with ${partnerId}`);
         }
         // Remove user from online chatters when they stop chatting
-        onlineChatters.delete(userId);
         socket.emit("stopped");
       } catch (err) {
         logger.error(`Error in stop handler: ${err.message}`);
@@ -421,25 +435,26 @@ export function initSocket(io) {
     socket.on("disconnect", async (reason) => {
       const userId = socketToUser.get(socket.id);
       if (userId) {
-        // Remove user from online chatters when they disconnect
-        onlineChatters.delete(userId);
-        
-        try {
-          const partnerId = await disconnectUser(userId);
-          if (partnerId) {
-            const ps = userToSocket.get(partnerId);
-            if (ps) io.to(ps).emit("stranger_left");
-            await getStore().decrementStat("active_chats").catch(() => {});
+        // Only clean up userToSocket if this socket is still the current one for this user
+        // (prevents wiping a fresh reconnect's mapping)
+        if (userToSocket.get(userId) === socket.id) {
+          userToSocket.delete(userId);
+          try {
+            const partnerId = await disconnectUser(userId);
+            if (partnerId) {
+              const ps = userToSocket.get(partnerId);
+              if (ps) io.to(ps).emit("stranger_left");
+              await getStore().decrementStat("active_chats").catch(() => {});
+            }
+          } catch (err) {
+            logger.error(`Error during disconnect cleanup: ${err.message}`);
           }
-        } catch (err) {
-          logger.error(`Error during disconnect cleanup: ${err.message}`);
         }
-
         socketToUser.delete(socket.id);
-        userToSocket.delete(userId);
       }
       logger.info(`Disconnected: ${socket.id} (reason: ${reason})`);
-      io.emit("online_count", { count: onlineChatters.size });
+      // Broadcast updated count after disconnect
+      broadcastOnlineCount();
     });
 
     socket.on("error", (err) => {

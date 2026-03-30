@@ -10,9 +10,9 @@ const socket = io(URL, {
   transports: isMobile ? ["polling", "websocket"] : ["websocket", "polling"],
   reconnection: true,
   reconnectionAttempts: Infinity,
-  reconnectionDelay: 1000,
-  reconnectionDelayMax: 8000,
-  timeout: 30000,
+  reconnectionDelay: 500,
+  reconnectionDelayMax: 3000,
+  timeout: 20000,
 });
 
 // Keep server alive — ping every 25 seconds
