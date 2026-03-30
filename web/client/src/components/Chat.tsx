@@ -267,13 +267,12 @@ export default function Chat({ profile, onStop }: Props) {
     socket.on("moderation_warning", ({ msg }: { msg: string }) => {
       showToast(msg, "warn");
     });
-    socket.connect();
+    // Socket is always connected — just set up listeners
     socket.on("disconnect", () => { setReconnecting(true); });
     socket.on("connect", () => {
       setReconnecting(prev => {
         if (prev) {
-          showToast("Reconnected to server", "success");
-          // Re-emit find after reconnect so user gets back into queue
+          showToast("Reconnected!", "success");
           socket.emit("find", { ...profile, languages: profile.languages, vibes: profile.vibes });
         }
         return false;
@@ -282,17 +281,20 @@ export default function Chat({ profile, onStop }: Props) {
     socket.io.on("reconnect_attempt", () => setReconnecting(true));
     socket.io.on("reconnect", () => {
       setReconnecting(false);
-      showToast("Reconnected to server", "success");
+      showToast("Reconnected!", "success");
     });
     const emitFind = () => socket.emit("find", { ...profile, languages: profile.languages, vibes: profile.vibes });
     if (socket.connected) emitFind(); else socket.once("connect", emitFind);
     return () => {
+      socket.off("connect");
+      socket.off("disconnect");
       socket.off("connect", emitFind);
       ["queued","matched","message","image","typing","stranger_left","stopped","banned",
-       "webrtc:offer","webrtc:answer","webrtc:ice","webrtc:end","disconnect"].forEach(e => socket.off(e));
+       "webrtc:offer","webrtc:answer","webrtc:ice","webrtc:end",
+       "chat_summary","message_delivered","moderation_warning"].forEach(e => socket.off(e));
       socket.io.off("reconnect_attempt");
       socket.io.off("reconnect");
-      socket.disconnect();
+      // Do NOT disconnect — socket stays alive for the whole app session
     };
   }, []);
 

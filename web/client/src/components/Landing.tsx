@@ -95,14 +95,13 @@ export default function Landing({ onStart }: Props) {
         .catch(() => {});
     load();
     const iv = setInterval(load, 15000);
-    socket.connect();
+    // Socket is always connected (autoConnect:true) — just listen for count updates
     socket.on("online_count", ({ count }: { count: number }) => {
       setStats((s) => ({ ...s, online: count }));
     });
     return () => {
       clearInterval(iv);
       socket.off("online_count");
-      // Don't disconnect — keep socket alive for the transition to Chat
     };
   }, []);
 

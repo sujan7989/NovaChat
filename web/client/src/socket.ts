@@ -2,26 +2,23 @@ import { io } from "socket.io-client";
 
 const URL = import.meta.env.VITE_SOCKET_URL || "https://novachat-production-57d2.up.railway.app";
 
-// On mobile networks, WebSocket is often blocked — start with polling then upgrade
-const isMobile = /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent);
-
 const socket = io(URL, {
-  autoConnect: false,
-  transports: isMobile ? ["polling", "websocket"] : ["websocket", "polling"],
+  autoConnect: true,          // connect immediately on load
+  transports: ["polling", "websocket"], // start with polling (works on all networks), upgrade to WS
   reconnection: true,
   reconnectionAttempts: Infinity,
   reconnectionDelay: 500,
   reconnectionDelayMax: 3000,
   timeout: 20000,
+  upgrade: true,              // upgrade from polling to websocket when possible
 });
 
-// Keep server alive — ping every 25 seconds
+// Keep Railway server alive — ping every 20 seconds
 setInterval(() => {
   fetch(`${URL}/api/health`).catch(() => {});
-}, 25000);
+}, 20000);
 
-// On mobile, browser may kill the socket when tab goes to background.
-// Reconnect as soon as the tab becomes visible again.
+// Reconnect when tab becomes visible again (mobile backgrounding)
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "visible" && !socket.connected) {
     socket.connect();
