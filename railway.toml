@@ -1,13 +1,18 @@
-# Root railway.toml — points to the server's own config
-# The actual deployment config lives in web/server/railway.toml
 [build]
-builder = "dockerfile"
-dockerfilePath = "web/server/Dockerfile"
-buildContext = "web/server"
+builder = "nixpacks"
+
+[build.nixpacksPlan.phases.setup]
+nixPkgs = ["nodejs_20"]
+
+[build.nixpacksPlan.phases.install]
+cmds = ["cd web/server && npm ci --omit=dev"]
+
+[build.nixpacksPlan.phases.build]
+cmds = []
 
 [deploy]
-startCommand = "node src/index.js"
+startCommand = "cd web/server && node src/index.js"
 healthcheckPath = "/api/health"
-healthcheckTimeout = 30
+healthcheckTimeout = 60
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 10
