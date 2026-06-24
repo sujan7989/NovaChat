@@ -2,10 +2,10 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-COPY web/server/package*.json ./
+COPY package*.json ./
 RUN npm ci --omit=dev
 
-COPY web/server/src/ ./src/
+COPY src/ ./src/
 
 EXPOSE 4000
 

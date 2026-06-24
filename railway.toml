@@ -1,3 +1,5 @@
+# Root railway.toml — points to the server's own config
+# The actual deployment config lives in web/server/railway.toml
 [build]
 builder = "dockerfile"
 dockerfilePath = "web/server/Dockerfile"

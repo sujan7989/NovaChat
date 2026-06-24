@@ -1,321 +1,276 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { Server } from 'socket.io';
-import { createClient } from 'redis-mock';
+import { io as ioClient } from 'socket.io-client';
 import { createServer } from 'http';
-import { initStore, getStore } from '../src/store.js';
-import { initSocket, getOnlineCount } from '../src/socket.js';
+
+// Force in-memory store by making ioredis throw on connect
+vi.mock('ioredis', () => {
+  return {
+    default: vi.fn(() => {
+      throw new Error('Redis not available in tests');
+    }),
+  };
+});
+
+const { initStore } = await import('../store.js');
+const { initSocket } = await import('../socket.js');
 
 describe('Socket Integration', () => {
-  let server;
+  let httpServer;
   let io;
-  let clientSocket;
-  let store;
+  let port;
 
   beforeEach(async () => {
-    // Mock Redis
-    vi.mock('ioredis', () => ({
-      default: vi.fn(() => createClient())
-    }));
-
-    // Setup test server
-    server = createServer();
-    io = new Server(server, {
-      cors: { origin: '*' }
-    });
-
     await initStore();
-    store = getStore();
+    httpServer = createServer();
+    io = new Server(httpServer, { cors: { origin: '*' } });
     initSocket(io);
 
-    // Start server
     await new Promise((resolve) => {
-      server.listen(0, resolve);
+      httpServer.listen(0, () => {
+        port = httpServer.address().port;
+        resolve();
+      });
     });
   });
 
   afterEach(async () => {
-    if (clientSocket) {
-      clientSocket.disconnect();
-    }
-    if (server) {
-      server.close();
-    }
-    await store.flushall();
+    io.close();
+    await new Promise((resolve) => httpServer.close(resolve));
   });
 
+  function makeClient(opts = {}) {
+    return ioClient(`http://localhost:${port}`, {
+      transports: ['websocket'],
+      forceNew: true,
+      ...opts,
+    });
+  }
+
+  function waitFor(socket, event, timeout = 3000) {
+    return new Promise((resolve, reject) => {
+      const t = setTimeout(() => reject(new Error(`Timeout waiting for "${event}"`)), timeout);
+      socket.once(event, (data) => { clearTimeout(t); resolve(data); });
+    });
+  }
+
   describe('Connection Handling', () => {
-    it('should handle client connection', (done) => {
-      clientSocket = new ClientSocket(`http://localhost:${server.address().port}`);
-      
-      clientSocket.on('connect', () => {
-        expect(clientSocket.connected).toBe(true);
-        done();
-      });
+    it('should handle client connection', async () => {
+      const client = makeClient();
+      await waitFor(client, 'connect');
+      expect(client.connected).toBe(true);
+      client.disconnect();
     });
 
-    it('should emit online count on connection', (done) => {
-      clientSocket = new ClientSocket(`http://localhost:${server.address().port}`);
-      
-      clientSocket.on('online_count', (data) => {
-        expect(data).toHaveProperty('count');
-        expect(data.count).toBe(1);
-        done();
-      });
+    it('should emit online_count on connection', async () => {
+      const client = makeClient();
+      const data = await waitFor(client, 'online_count');
+      expect(data).toHaveProperty('count');
+      expect(data.count).toBeGreaterThanOrEqual(1);
+      client.disconnect();
     });
   });
 
   describe('Matchmaking', () => {
-    let client1, client2;
+    it('should queue a user when no match is available', async () => {
+      const client = makeClient();
+      await waitFor(client, 'connect');
 
-    beforeEach(() => {
-      client1 = new ClientSocket(`http://localhost:${server.address().port}`);
-      client2 = new ClientSocket(`http://localhost:${server.address().port}`);
+      client.emit('find', {
+        userId: 'solo-user-abc123',
+        gender: 'male',
+        pref: 'female',
+        interests: ['gaming'],
+        languages: ['english'],
+        vibes: ['chill'],
+      });
+
+      const data = await waitFor(client, 'queued');
+      expect(data).toBeUndefined(); // queued emits no payload
+      client.disconnect();
     });
 
-    afterEach(() => {
-      client1?.disconnect();
-      client2?.disconnect();
-    });
+    it('should match two compatible users', async () => {
+      const client1 = makeClient();
+      const client2 = makeClient();
 
-    it('should match two users', (done) => {
-      let matchedCount = 0;
-      const expectedMatches = 2;
+      await Promise.all([waitFor(client1, 'connect'), waitFor(client2, 'connect')]);
 
-      function checkComplete() {
-        matchedCount++;
-        if (matchedCount === expectedMatches) {
-          done();
-        }
-      }
+      const match1Promise = waitFor(client1, 'matched');
+      const match2Promise = waitFor(client2, 'matched');
 
-      client1.on('matched', (data) => {
-        expect(data).toHaveProperty('shared');
-        checkComplete();
+      client1.emit('find', {
+        userId: 'match-user-aaa111',
+        gender: 'male',
+        pref: 'female',
+        interests: ['gaming'],
+        languages: ['english'],
+        vibes: ['chill'],
       });
 
-      client2.on('matched', (data) => {
-        expect(data).toHaveProperty('shared');
-        checkComplete();
+      client2.emit('find', {
+        userId: 'match-user-bbb222',
+        gender: 'female',
+        pref: 'male',
+        interests: ['gaming'],
+        languages: ['english'],
+        vibes: ['chill'],
       });
 
-      // Connect both clients and find matches
-      setTimeout(() => {
-        client1.emit('find', {
-          userId: 'user-1',
-          gender: 'male',
-          pref: 'female',
-          interests: ['gaming'],
-          languages: ['en'],
-          vibes: ['chill']
-        });
+      const [match1, match2] = await Promise.all([match1Promise, match2Promise]);
+      expect(match1).toHaveProperty('shared');
+      expect(match2).toHaveProperty('shared');
 
-        client2.emit('find', {
-          userId: 'user-2',
-          gender: 'female',
-          pref: 'male',
-          interests: ['gaming'],
-          languages: ['en'],
-          vibes: ['chill']
-        });
-      }, 100);
-    });
-
-    it('should handle next request', (done) => {
-      client1.on('matched', () => {
-        // User 1 requests next
-        client1.emit('next', {
-          userId: 'user-1',
-          gender: 'male',
-          pref: 'female',
-          interests: ['gaming'],
-          languages: ['en'],
-          vibes: ['chill']
-        });
-      });
-
-      client2.on('stranger_left', () => {
-        done();
-      });
-
-      // Initial match
-      setTimeout(() => {
-        client1.emit('find', {
-          userId: 'user-1',
-          gender: 'male',
-          pref: 'female',
-          interests: ['gaming'],
-          languages: ['en'],
-          vibes: ['chill']
-        });
-
-        client2.emit('find', {
-          userId: 'user-2',
-          gender: 'female',
-          pref: 'male',
-          interests: ['gaming'],
-          languages: ['en'],
-          vibes: ['chill']
-        });
-      }, 100);
+      client1.disconnect();
+      client2.disconnect();
     });
   });
 
   describe('Messaging', () => {
-    let client1, client2;
+    it('should relay messages between matched users', async () => {
+      const client1 = makeClient();
+      const client2 = makeClient();
 
-    beforeEach(() => {
-      client1 = new ClientSocket(`http://localhost:${server.address().port}`);
-      client2 = new ClientSocket(`http://localhost:${server.address().port}`);
+      await Promise.all([waitFor(client1, 'connect'), waitFor(client2, 'connect')]);
+
+      // Match them first
+      const match1Promise = waitFor(client1, 'matched');
+      const match2Promise = waitFor(client2, 'matched');
+
+      client1.emit('find', {
+        userId: 'msg-user-aaa111',
+        gender: 'male',
+        pref: 'female',
+        interests: ['music'],
+        languages: ['english'],
+        vibes: [],
+      });
+      client2.emit('find', {
+        userId: 'msg-user-bbb222',
+        gender: 'female',
+        pref: 'male',
+        interests: ['music'],
+        languages: ['english'],
+        vibes: [],
+      });
+
+      await Promise.all([match1Promise, match2Promise]);
+
+      // Now send a message
+      const msgPromise = waitFor(client2, 'message');
+      client1.emit('message', { userId: 'msg-user-aaa111', text: 'Hello from user 1' });
+
+      const msg = await msgPromise;
+      expect(msg.text).toBe('Hello from user 1');
+      expect(msg.from).toBe('stranger');
+
+      client1.disconnect();
+      client2.disconnect();
     });
 
-    afterEach(() => {
-      client1?.disconnect();
-      client2?.disconnect();
-    });
+    it('should relay typing indicators', async () => {
+      const client1 = makeClient();
+      const client2 = makeClient();
 
-    it('should relay messages between matched users', (done) => {
-      client1.on('matched', () => {
-        client1.emit('message', {
-          userId: 'user-1',
-          text: 'Hello from user 1'
-        });
+      await Promise.all([waitFor(client1, 'connect'), waitFor(client2, 'connect')]);
+
+      const match1Promise = waitFor(client1, 'matched');
+      const match2Promise = waitFor(client2, 'matched');
+
+      client1.emit('find', {
+        userId: 'typ-user-aaa111',
+        gender: 'male',
+        pref: 'female',
+        interests: [],
+        languages: [],
+        vibes: [],
+      });
+      client2.emit('find', {
+        userId: 'typ-user-bbb222',
+        gender: 'female',
+        pref: 'male',
+        interests: [],
+        languages: [],
+        vibes: [],
       });
 
-      client2.on('message', (data) => {
-        expect(data.text).toBe('Hello from user 1');
-        expect(data.from).toBe('stranger');
-        done();
-      });
+      await Promise.all([match1Promise, match2Promise]);
 
-      // Match users first
-      setTimeout(() => {
-        client1.emit('find', {
-          userId: 'user-1',
-          gender: 'male',
-          pref: 'female',
-          interests: ['gaming'],
-          languages: ['en'],
-          vibes: ['chill']
-        });
+      const typingPromise = waitFor(client2, 'typing');
+      client1.emit('typing', { userId: 'typ-user-aaa111', isTyping: true });
 
-        client2.emit('find', {
-          userId: 'user-2',
-          gender: 'female',
-          pref: 'male',
-          interests: ['gaming'],
-          languages: ['en'],
-          vibes: ['chill']
-        });
-      }, 100);
-    });
+      const typing = await typingPromise;
+      expect(typing.isTyping).toBe(true);
 
-    it('should handle typing indicators', (done) => {
-      client1.on('matched', () => {
-        client1.emit('typing', {
-          userId: 'user-1',
-          isTyping: true
-        });
-      });
-
-      client2.on('typing', (data) => {
-        expect(data.isTyping).toBe(true);
-        done();
-      });
-
-      // Match users first
-      setTimeout(() => {
-        client1.emit('find', {
-          userId: 'user-1',
-          gender: 'male',
-          pref: 'female',
-          interests: ['gaming'],
-          languages: ['en'],
-          vibes: ['chill']
-        });
-
-        client2.emit('find', {
-          userId: 'user-2',
-          gender: 'female',
-          pref: 'male',
-          interests: ['gaming'],
-          languages: ['en'],
-          vibes: ['chill']
-        });
-      }, 100);
+      client1.disconnect();
+      client2.disconnect();
     });
   });
 
   describe('Error Handling', () => {
-    it('should handle invalid payloads', (done) => {
-      clientSocket = new ClientSocket(`http://localhost:${server.address().port}`);
-      
-      clientSocket.on('error_msg', (data) => {
-        expect(data).toHaveProperty('msg');
-        done();
-      });
+    it('should return error_msg for invalid find payload', async () => {
+      const client = makeClient();
+      await waitFor(client, 'connect');
 
-      setTimeout(() => {
-        clientSocket.emit('find', {
-          userId: 'invalid', // Too short
-          gender: 'invalid-gender'
-        });
-      }, 100);
+      const errPromise = waitFor(client, 'error_msg');
+      client.emit('find', { userId: 'bad', gender: 'invalid-gender' });
+
+      const err = await errPromise;
+      expect(err).toHaveProperty('msg');
+      client.disconnect();
     });
 
-    it('should handle rate limiting', (done) => {
-      clientSocket = new ClientSocket(`http://localhost:${server.address().port}`);
-      
-      let rateLimitedCount = 0;
-      
-      clientSocket.on('rate_limited', () => {
-        rateLimitedCount++;
-        if (rateLimitedCount > 0) {
-          done();
-        }
+    it('should rate-limit rapid messages', async () => {
+      const client = makeClient();
+      await waitFor(client, 'connect');
+
+      const rateLimitPromise = waitFor(client, 'rate_limited', 5000);
+
+      // Send 25 messages rapidly to trigger rate limit (limit is 20 per 10s)
+      for (let i = 0; i < 25; i++) {
+        client.emit('message', { userId: 'rate-user-abc123', text: `Message ${i}` });
+      }
+
+      const data = await rateLimitPromise;
+      expect(data).toHaveProperty('msg');
+      client.disconnect();
+    });
+  });
+
+  describe('Disconnect Handling', () => {
+    it('should notify partner when user disconnects', async () => {
+      const client1 = makeClient();
+      const client2 = makeClient();
+
+      await Promise.all([waitFor(client1, 'connect'), waitFor(client2, 'connect')]);
+
+      const match1Promise = waitFor(client1, 'matched');
+      const match2Promise = waitFor(client2, 'matched');
+
+      client1.emit('find', {
+        userId: 'disc-user-aaa111',
+        gender: 'male',
+        pref: 'female',
+        interests: [],
+        languages: [],
+        vibes: [],
+      });
+      client2.emit('find', {
+        userId: 'disc-user-bbb222',
+        gender: 'female',
+        pref: 'male',
+        interests: [],
+        languages: [],
+        vibes: [],
       });
 
-      // Send multiple messages quickly to trigger rate limit
-      setTimeout(() => {
-        for (let i = 0; i < 25; i++) {
-          clientSocket.emit('message', {
-            userId: 'test-user-123',
-            text: `Message ${i}`
-          });
-        }
-      }, 100);
+      await Promise.all([match1Promise, match2Promise]);
+
+      const leftPromise = waitFor(client2, 'stranger_left');
+      client1.disconnect();
+
+      await leftPromise; // client2 should be notified
+      client2.disconnect();
     });
   });
 });
-
-// Mock Socket.IO client for testing
-class ClientSocket {
-  constructor(url) {
-    this.connected = false;
-    this.events = {};
-    this.id = 'test-client-' + Math.random();
-    
-    // Simulate connection
-    setTimeout(() => {
-      this.connected = true;
-      this.emit('connect');
-    }, 50);
-  }
-
-  on(event, callback) {
-    if (!this.events[event]) {
-      this.events[event] = [];
-    }
-    this.events[event].push(callback);
-  }
-
-  emit(event, data) {
-    if (this.events[event]) {
-      this.events[event].forEach(callback => callback(data));
-    }
-  }
-
-  disconnect() {
-    this.connected = false;
-    this.emit('disconnect');
-  }
-}

@@ -31,8 +31,8 @@ export const REDIS_URL = requireEnv("REDIS_URL", "redis://localhost:6379");
 // CORS / Client
 export const CLIENT_URL = requireEnv("CLIENT_URL", "http://localhost:5173");
 
-// JWT / Security
-export const JWT_SECRET = requireEnv("JWT_SECRET", IS_PRODUCTION ? undefined : "dev-secret-change-in-production");
+// JWT / Security — optional until auth is implemented; defaults to a dev-only placeholder
+export const JWT_SECRET = requireEnv("JWT_SECRET", "dev-secret-change-in-production");
 export const BCRYPT_ROUNDS = parseIntEnv("BCRYPT_ROUNDS", 12);
 
 // Rate Limiting - API

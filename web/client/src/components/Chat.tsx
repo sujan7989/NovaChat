@@ -210,12 +210,18 @@ export default function Chat({ profile, onStop }: Props) {
   const typingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  // Keep a ref in sync with messages state so socket callbacks always see the latest messages
+  const messagesRef = useRef<Message[]>([]);
   const { toasts, show: showToast, remove: removeToast } = useToast();
 
   const { localStream, remoteStream, callError, startCall, handleOffer, handleAnswer, handleIce, endCall, cleanup } = useWebRTC(profile.userId);
 
   const addMsg = useCallback((msg: Omit<Message, "id" | "timestamp">) => {
-    setMessages(prev => [...prev, { ...msg, id: uuidv4(), timestamp: Date.now() }]);
+    setMessages(prev => {
+      const next = [...prev, { ...msg, id: uuidv4(), timestamp: Date.now() }];
+      messagesRef.current = next;
+      return next;
+    });
   }, []);
 
   useEffect(() => {
@@ -242,8 +248,8 @@ export default function Chat({ profile, onStop }: Props) {
       addMsg({ from: "stranger", type: "text", text: "👻 Stranger has left the chat." });
       // Delay rating modal by 1.5s — feels more natural
       setTimeout(() => setShowRating(true), 1500);
-      // Send messages to server for AI summary
-      socket.emit("submit_for_summary", { userId: profile.userId, messages: messages });
+      // Send current messages (via ref, never stale) to server for AI summary
+      socket.emit("submit_for_summary", { userId: profile.userId, messages: messagesRef.current });
     });
     socket.on("chat_summary", ({ summary }: { summary: string }) => {
       setChatSummary(summary);
@@ -254,8 +260,8 @@ export default function Chat({ profile, onStop }: Props) {
     socket.on("webrtc:answer", ({ answer }: { answer: RTCSessionDescriptionInit }) => handleAnswer(answer));
     socket.on("webrtc:ice", ({ candidate }: { candidate: RTCIceCandidateInit }) => handleIce(candidate));
     socket.on("webrtc:end", () => { cleanup(); setShowVideo(false); });
-    // Also end call if socket disconnects
-    socket.on("disconnect", () => { if (showVideo) { cleanup(); setShowVideo(false); } });
+    // Clean up video call if socket disconnects mid-call
+    socket.on("disconnect", () => { cleanup(); setShowVideo(false); setReconnecting(true); });
     socket.on("message_delivered", ({ text }: { text: string }) => {
       setMessages(prev => {
         const idx = [...prev].reverse().findIndex(m => m.from === "me" && m.text === text);
@@ -268,25 +274,20 @@ export default function Chat({ profile, onStop }: Props) {
       showToast(msg, "warn");
     });
     // Socket is always connected — just set up listeners
-    socket.on("disconnect", () => { setReconnecting(true); });
-    socket.on("connect", () => {
-      setReconnecting(prev => {
-        if (prev) {
-          showToast("Reconnected!", "success");
-          socket.emit("find", { ...profile, languages: profile.languages, vibes: profile.vibes });
-        }
-        return false;
-      });
-    });
     socket.io.on("reconnect_attempt", () => setReconnecting(true));
     socket.io.on("reconnect", () => {
       setReconnecting(false);
       showToast("Reconnected!", "success");
+      // Re-emit find after reconnect so we get back into the queue
+      socket.emit("find", { ...profile, languages: profile.languages, vibes: profile.vibes });
     });
     const emitFind = () => socket.emit("find", { ...profile, languages: profile.languages, vibes: profile.vibes });
-    if (socket.connected) emitFind(); else socket.once("connect", emitFind);
+    if (socket.connected) {
+      emitFind();
+    } else {
+      socket.once("connect", emitFind);
+    }
     return () => {
-      socket.off("connect");
       socket.off("disconnect");
       socket.off("connect", emitFind);
       ["queued","matched","message","image","typing","stranger_left","stopped","banned",

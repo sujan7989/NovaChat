@@ -37,11 +37,12 @@ export async function enqueue(userId, gender, pref, interests, languages, vibes)
     interests: interests || [],
     languages: languages || [],
     vibes:     vibes     || [],
-    ts:        Date.now(), // timestamp for stale cleanup
+    ts:        Date.now(), // timestamp — stale entries are filtered during dequeue
   });
   await redis.rpush("queue:all", data);
-  // Auto-expire queue entries after 5 minutes to prevent ghost users
-  await redis.expire("queue:all", 300);
+  // NOTE: do NOT set expire on queue:all — it's a shared list and a TTL would
+  // silently evict everyone currently waiting if nobody joins for 5 minutes.
+  // Stale-entry cleanup is handled by checking `ts` during dequeueMatch.
 }
 
 function hasOverlap(a, b) {
@@ -55,14 +56,22 @@ export async function dequeueMatch(userId, myGender, myPref, myInterests, myLang
   const myVbs   = myVibes     || [];
 
   const members = await redis.lrange("queue:all", 0, -1);
+  const now = Date.now();
 
   let bestRaw   = null;
   let bestScore = -Infinity;
+  const staleEntries = [];
 
   for (const raw of members) {
     let c;
     try { c = JSON.parse(raw); } catch { continue; }
     if (c.userId === userId) continue;
+
+    // Remove stale entries (older than 5 minutes) — collect to delete in batch
+    if (c.ts && now - c.ts > 300_000) {
+      staleEntries.push(raw);
+      continue;
+    }
 
     // Gender pref — hard rule only when specific pref set
     const myPrefSpecific    = myPref !== "any";
@@ -86,6 +95,11 @@ export async function dequeueMatch(userId, myGender, myPref, myInterests, myLang
       bestScore = score;
       bestRaw   = raw;
     }
+  }
+
+  // Purge stale entries in the background
+  if (staleEntries.length > 0) {
+    Promise.all(staleEntries.map(e => redis.lrem("queue:all", 1, e))).catch(() => {});
   }
 
   if (!bestRaw) return null;

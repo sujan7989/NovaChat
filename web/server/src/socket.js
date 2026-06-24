@@ -337,8 +337,13 @@ export function initSocket(io) {
         if (match) {
           const ps = userToSocket.get(match.partnerId);
           if (ps) {
-            socket.emit("matched", { shared: match.shared, partnerVibes: match.partnerVibes });
-            io.to(ps).emit("matched", { shared: match.shared });
+            generateIcebreaker(match.shared, match.partnerVibes).then(icebreaker => {
+              socket.emit("matched", { shared: match.shared, partnerVibes: match.partnerVibes, icebreaker });
+              io.to(ps).emit("matched", { shared: match.shared, icebreaker });
+            }).catch(() => {
+              socket.emit("matched", { shared: match.shared, partnerVibes: match.partnerVibes });
+              io.to(ps).emit("matched", { shared: match.shared });
+            });
           }
         } else {
           socket.emit("queued");
@@ -408,14 +413,6 @@ export function initSocket(io) {
       } catch (err) {
         logger.error(`Error in report handler: ${err.message}`);
       }
-    });
-
-    socket.on("request_summary", async (payload) => {
-      if (!payload?.userId) return;
-      const { userId } = payload;
-      // Get messages from the conversation store if available
-      // We pass the socket's recent messages via the client
-      // Summary is generated from client-side messages sent via this event
     });
 
     socket.on("submit_for_summary", async (payload) => {
