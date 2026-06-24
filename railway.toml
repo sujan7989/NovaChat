@@ -1,17 +1,8 @@
-[build]
+﻿[build]
 builder = "nixpacks"
 
-[build.nixpacksPlan.phases.setup]
-nixPkgs = ["nodejs_20"]
-
-[build.nixpacksPlan.phases.install]
-cmds = ["cd web/server && npm ci --omit=dev"]
-
-[build.nixpacksPlan.phases.build]
-cmds = []
-
 [deploy]
-startCommand = "cd web/server && node src/index.js"
+startCommand = "npm start"
 healthcheckPath = "/api/health"
 healthcheckTimeout = 60
 restartPolicyType = "ON_FAILURE"
