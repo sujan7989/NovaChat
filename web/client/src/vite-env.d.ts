@@ -1,7 +1,9 @@
 /// <reference types="vite/client" />
 
 interface ImportMetaEnv {
-  /** Backend origin, e.g. https://api.example.com. Unset in dev (uses Vite proxy). */
+  /** Preferred backend origin. Unset in dev (uses Vite proxy). */
+  readonly VITE_BACKEND_URL?: string;
+  /** Legacy fallback for existing deployments. */
   readonly VITE_API_URL?: string;
 }
 

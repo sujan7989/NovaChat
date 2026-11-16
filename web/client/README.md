@@ -13,7 +13,7 @@ Live: [novachat-three.vercel.app](https://novachat-three.vercel.app)
 
 ```bash
 npm install
-cp .env.example .env   # leave VITE_API_URL unset to use the dev proxy
+cp .env.example .env   # leave backend URL unset to use the dev proxy
 npm run dev
 ```
 
@@ -37,11 +37,13 @@ Open http://localhost:5173.
 
 ## Configuration
 
-The client reads a single environment variable:
+The client reads the preferred backend URL first, then supports the previous
+variable name as a compatibility fallback:
 
 | Variable | Description |
 |---|---|
-| `VITE_API_URL` | Backend origin used for REST calls and the Socket.IO connection. Unset in development (same-origin dev proxy). Set to your deployed server URL in production (see `.env.production`). |
+| `VITE_BACKEND_URL` | Preferred backend origin for REST calls and Socket.IO. Unset in development (same-origin dev proxy); set to the deployed server URL in production (see `.env.production`). |
+| `VITE_API_URL` | Legacy fallback. `VITE_BACKEND_URL` takes precedence when both are set. |
 
 ## Project structure
 
