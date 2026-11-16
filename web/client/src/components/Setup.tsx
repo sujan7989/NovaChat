@@ -169,7 +169,7 @@ function Pill({
 export default function Setup({ onDone }: Props) {
   const [step, setStep] = useState(1);
   const [gender, setGender] = useState<Gender | null>(null);
-  const [pref, setPref] = useState<Pref | null>(null);
+  const [pref, setPref] = useState<Pref>("any");
   const [interests, setInterests] = useState<string[]>([]);
   const [languages, setLanguages] = useState<string[]>([]);
   const [vibes, setVibes] = useState<string[]>([]);
@@ -185,19 +185,31 @@ export default function Setup({ onDone }: Props) {
 
   const goTo = (s: number) => setStep(s);
 
+  const finish = (includeFilters = true) => {
+    if (!gender) return;
+    onDone(
+      gender,
+      pref,
+      includeFilters ? interests : [],
+      includeFilters ? languages : [],
+      includeFilters ? vibes : []
+    );
+  };
+
   const skip = () => {
     if (step < 4) goTo(step + 1);
-    else onDone(gender ?? "other", pref ?? "any", interests, languages, vibes);
+    else finish();
   };
 
   const next = () => {
     if (step < 4) goTo(step + 1);
-    else onDone(gender!, pref!, interests, languages, vibes);
+    else finish();
   };
 
-  const canContinue = step === 1 ? Boolean(gender && pref) : true;
+  const canContinue = step === 1 ? Boolean(gender) : true;
 
   const ctaLabel = () => {
+    if (step === 1) return "Find a stranger";
     if (step === 2 && interests.length)
       return `Continue with ${interests.length} interest${interests.length > 1 ? "s" : ""}`;
     if (step === 3 && languages.length)
@@ -205,6 +217,8 @@ export default function Setup({ onDone }: Props) {
     if (step === 4) return "Find a stranger";
     return "Continue";
   };
+  const progressItems = step === 1 ? ["Quick match"] : STEP_TITLES.slice(1);
+  const progressStep = step === 1 ? 1 : step - 1;
 
   return (
     <div
@@ -221,18 +235,22 @@ export default function Setup({ onDone }: Props) {
       <header className="relative z-10 flex shrink-0 items-center justify-between px-5 pt-5">
         <LogoMark size={28} />
         <span className="text-[12px] font-medium tabular-nums text-fg-subtle">
-          Step {step} of 4
+          {step === 1 ? "Quick match" : `Optional filters ${progressStep} of 3`}
         </span>
       </header>
 
       {/* Progress rail */}
       <div className="relative z-10 mx-auto mt-4 flex w-full max-w-2xl shrink-0 gap-1.5 px-5">
-        {STEP_TITLES.map((t, i) => (
+        {progressItems.map((t, i) => (
           <div
             key={t}
             className={cx(
               "h-1 flex-1 rounded-full transition-colors duration-300",
-              step > i + 1 ? "bg-accent" : step === i + 1 ? "bg-accent/60" : "bg-line"
+              step === 1
+                ? "bg-accent/60"
+                : progressStep > i + 1
+                  ? "bg-accent"
+                  : progressStep === i + 1 ? "bg-accent/60" : "bg-line"
             )}
           />
         ))}
@@ -273,6 +291,12 @@ export default function Setup({ onDone }: Props) {
                     />
                   ))}
                 </div>
+                <p className="mt-2 max-w-sm text-xs leading-relaxed text-fg-subtle">
+                  {pref === "any"
+                    ? "Anyone gives you the broadest match pool."
+                    : "Specific preferences can mean a longer wait for a compatible match."}{" "}
+                  You can add filters if you prefer.
+                </p>
               </div>
             </div>
           )}
@@ -332,15 +356,24 @@ export default function Setup({ onDone }: Props) {
               Back
             </Button>
           )}
-          <Button size="lg" className="group flex-1" disabled={!canContinue} onClick={next}>
+          <Button
+            size="lg"
+            className="group flex-1"
+            disabled={!canContinue}
+            onClick={step === 1 ? () => finish(false) : next}
+          >
             {ctaLabel()}
             <ArrowRight size={17} className="transition-transform group-hover:translate-x-0.5" />
           </Button>
-          {step < 4 && (
+          {step === 1 ? (
+            <Button variant="ghost" size="lg" onClick={() => goTo(2)} className="shrink-0" disabled={!gender}>
+              Filters
+            </Button>
+          ) : step < 4 ? (
             <Button variant="ghost" size="lg" onClick={skip} className="shrink-0">
               Skip
             </Button>
-          )}
+          ) : null}
         </div>
       </footer>
     </div>

@@ -174,6 +174,7 @@ export default function Chat({ profile, onStop }: Props) {
   const [ratingDone, setRatingDone] = useState(false);
   const [chatSummary, setChatSummary] = useState<string | null>(null);
   const [isDesktop, setIsDesktop] = useState(() => window.innerWidth >= 768);
+  const [socketConnected, setSocketConnected] = useState(socket.connected);
 
   useEffect(() => {
     const handler = () => setIsDesktop(window.innerWidth >= 768);
@@ -200,6 +201,24 @@ export default function Chat({ profile, onStop }: Props) {
   }, []);
 
   useEffect(() => {
+    const handleSocketConnect = () => {
+      setSocketConnected(true);
+      setReconnecting(false);
+    };
+    const handleSocketDisconnect = () => {
+      setSocketConnected(false);
+      cleanup();
+      setShowVideo(false);
+      setReconnecting(true);
+    };
+    const handleReconnectAttempt = () => setReconnecting(true);
+    const handleReconnect = () => {
+      setReconnecting(false);
+      showToast("Reconnected", "success");
+      socket.emit("find", { ...profile, languages: profile.languages, vibes: profile.vibes });
+    };
+
+    socket.on("connect", handleSocketConnect);
     socket.on("queued", () => setStatus("searching"));
     socket.on("matched", ({ shared, partnerVibes, icebreaker }: { shared: string[]; partnerVibes?: string[]; icebreaker?: string }) => {
       setStatus("chatting");
@@ -241,7 +260,7 @@ export default function Chat({ profile, onStop }: Props) {
     socket.on("webrtc:answer", ({ answer }: { answer: RTCSessionDescriptionInit }) => handleAnswer(answer));
     socket.on("webrtc:ice", ({ candidate }: { candidate: RTCIceCandidateInit }) => handleIce(candidate));
     socket.on("webrtc:end", () => { cleanup(); setShowVideo(false); });
-    socket.on("disconnect", () => { cleanup(); setShowVideo(false); setReconnecting(true); });
+    socket.on("disconnect", handleSocketDisconnect);
     socket.on("message_delivered", ({ text }: { text: string }) => {
       setMessages((prev) => {
         const idx = [...prev].reverse().findIndex((m) => m.from === "me" && m.text === text);
@@ -252,25 +271,22 @@ export default function Chat({ profile, onStop }: Props) {
     });
     socket.on("moderation_warning", ({ msg }: { msg: string }) => showToast(msg, "warn"));
 
-    socket.io.on("reconnect_attempt", () => setReconnecting(true));
-    socket.io.on("reconnect", () => {
-      setReconnecting(false);
-      showToast("Reconnected", "success");
-      socket.emit("find", { ...profile, languages: profile.languages, vibes: profile.vibes });
-    });
+    socket.io.on("reconnect_attempt", handleReconnectAttempt);
+    socket.io.on("reconnect", handleReconnect);
 
     const emitFind = () => socket.emit("find", { ...profile, languages: profile.languages, vibes: profile.vibes });
     if (socket.connected) emitFind();
     else socket.once("connect", emitFind);
 
     return () => {
-      socket.off("disconnect");
+      socket.off("connect", handleSocketConnect);
+      socket.off("disconnect", handleSocketDisconnect);
       socket.off("connect", emitFind);
       ["queued","matched","message","image","typing","stranger_left","stopped","banned",
        "webrtc:offer","webrtc:answer","webrtc:ice","webrtc:end",
        "chat_summary","message_delivered","moderation_warning"].forEach((e) => socket.off(e));
-      socket.io.off("reconnect_attempt");
-      socket.io.off("reconnect");
+      socket.io.off("reconnect_attempt", handleReconnectAttempt);
+      socket.io.off("reconnect", handleReconnect);
     };
   }, [addMsg, cleanup, handleAnswer, handleIce, handleOffer, profile, showToast]);
 
@@ -378,7 +394,7 @@ export default function Chat({ profile, onStop }: Props) {
       <aside
         className={cx(
           "flex shrink-0 flex-col border-r border-white/[0.07] bg-white/[0.03] backdrop-blur-2xl transition-transform duration-300",
-          isDesktop ? "relative" : "fixed inset-y-0 left-0 z-40 translate-x-0",
+          isDesktop ? "relative" : "fixed inset-y-0 left-0 z-40",
           !isDesktop && (sidebarOpen ? "translate-x-0" : "-translate-x-full")
         )}
         style={{ width: 260 }}
@@ -396,9 +412,15 @@ export default function Chat({ profile, onStop }: Props) {
 
         <div className="border-b border-white/[0.07] px-4 py-3">
           <div className="flex items-center gap-2">
-            <StatusDot tone={status === "chatting" ? "success" : status === "searching" ? "warning" : "muted"} />
+            <StatusDot
+              tone={status === "chatting" ? "success" : status === "searching" ? "warning" : "muted"}
+            />
             <span className="text-[13px] font-medium text-fg">
-              {status === "chatting" ? "Connected" : status === "searching" ? "Searching" : "Disconnected"}
+              {status === "chatting"
+                ? "Connected"
+                : status === "searching"
+                  ? socketConnected ? "Finding a match" : "Connecting to server"
+                  : "Disconnected"}
             </span>
           </div>
         </div>
@@ -408,8 +430,14 @@ export default function Chat({ profile, onStop }: Props) {
             <>
               <SearchingVisual />
               <div className="text-center">
-                <p className="text-sm font-medium text-fg">Finding someone</p>
-                <p className="mt-1 text-xs text-fg-subtle">Usually a few seconds</p>
+                <p className="text-sm font-medium text-fg">
+                  {socketConnected ? "Finding someone" : "Connecting to NovaChat"}
+                </p>
+                <p className="mt-1 text-xs text-fg-subtle">
+                  {socketConnected
+                    ? "Waiting for a compatible person to join"
+                    : "We will keep trying automatically"}
+                </p>
               </div>
             </>
           )}
@@ -476,7 +504,11 @@ export default function Chat({ profile, onStop }: Props) {
             <p className="text-xs text-fg-subtle">
               {strangerTyping ? (
                 <span className="text-accent-hover">typing…</span>
-              ) : status === "chatting" ? "online" : status === "searching" ? "connecting…" : "offline"}
+              ) : status === "chatting"
+                ? "online"
+                : status === "searching"
+                  ? socketConnected ? "finding a match…" : "connecting to server…"
+                  : "offline"}
             </p>
           </div>
           <div className="flex items-center gap-1.5">
@@ -503,8 +535,14 @@ export default function Chat({ profile, onStop }: Props) {
               <div className="grid h-14 w-14 place-items-center rounded-full border border-white/[0.09] bg-white/[0.05] backdrop-blur-md">
                 <Loader2 size={22} className="animate-spin text-fg-muted" />
               </div>
-              <p className="text-sm font-medium text-fg">Scanning for someone…</p>
-              <p className="text-xs text-fg-subtle">A stranger is about to appear</p>
+              <p className="text-sm font-medium text-fg">
+                {socketConnected ? "Waiting for a match…" : "Connecting to NovaChat…"}
+              </p>
+              <p className="text-xs text-fg-subtle">
+                {socketConnected
+                  ? "Your chat starts when a compatible person is available"
+                  : "We will retry the server connection automatically"}
+              </p>
             </div>
           )}
 
