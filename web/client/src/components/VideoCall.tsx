@@ -4,6 +4,7 @@ import { v4 as uuidv4 } from "uuid";
 import {
   Mic, MicOff, Video as VideoIcon, VideoOff, PhoneOff, SkipForward,
   MessageSquare, Maximize2, Minimize2, Send, X, Loader2, AlertTriangle, User,
+  Volume2, VolumeX,
 } from "lucide-react";
 import socket from "../socket";
 import { cx } from "../lib";
@@ -61,6 +62,7 @@ function CtrlButton({
 export default function VideoCall({ localStream, remoteStream, callError, userId, onEnd, onNext }: Props) {
   const localRef = useRef<HTMLVideoElement>(null);
   const remoteRef = useRef<HTMLVideoElement>(null);
+  const remoteAudioRef = useRef<HTMLAudioElement>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const chatInputRef = useRef<HTMLInputElement>(null);
 
@@ -73,6 +75,10 @@ export default function VideoCall({ localStream, remoteStream, callError, userId
   const [chatInput, setChatInput] = useState("");
   const [messages, setMessages] = useState<ChatMsg[]>([]);
   const [unread, setUnread] = useState(0);
+  const [remoteVideoPlaying, setRemoteVideoPlaying] = useState(false);
+  const [remoteVideoRetryNeeded, setRemoteVideoRetryNeeded] = useState(false);
+  const [remoteAudioEnabled, setRemoteAudioEnabled] = useState(false);
+  const [remoteAudioBlocked, setRemoteAudioBlocked] = useState(false);
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 640);
   const [strangerTyping, setStrangerTyping] = useState(false);
 
@@ -94,26 +100,58 @@ export default function VideoCall({ localStream, remoteStream, callError, userId
     }
   }, [localStream]);
 
+  const playRemoteVideo = useCallback(async () => {
+    const video = remoteRef.current;
+    if (!video) return;
+    video.muted = true;
+    try {
+      await video.play();
+      setRemoteVideoRetryNeeded(false);
+    } catch {
+      setRemoteVideoRetryNeeded(true);
+    }
+  }, []);
+
   useEffect(() => {
     const video = remoteRef.current;
-    if (!video || !remoteStream) return;
+    if (!video) return;
     if (video.srcObject !== remoteStream) video.srcObject = remoteStream;
-    const tryPlay = () => video.play().catch(() => {});
-    tryPlay();
-    const onAddTrack = () => tryPlay();
-    remoteStream.addEventListener("addtrack", onAddTrack);
-    return () => remoteStream.removeEventListener("addtrack", onAddTrack);
+    video.muted = true;
   }, [remoteStream]);
 
-  // Retry play every 600ms — handles autoplay policy blocks and muted tracks
   useEffect(() => {
-    const interval = setInterval(() => {
-      const video = remoteRef.current;
-      if (!video) return;
-      if (video.srcObject && (video.paused || video.readyState < 3)) video.play().catch(() => {});
-    }, 600);
-    return () => clearInterval(interval);
-  }, []);
+    const audio = remoteAudioRef.current;
+    if (!audio) return;
+    audio.srcObject = remoteStream;
+    audio.muted = !remoteAudioEnabled;
+    if (remoteStream && remoteAudioEnabled) {
+      audio.play().catch(() => {
+        audio.muted = true;
+        setRemoteAudioEnabled(false);
+        setRemoteAudioBlocked(true);
+      });
+    }
+  }, [remoteStream, remoteAudioEnabled]);
+
+  const toggleRemoteAudio = async () => {
+    const audio = remoteAudioRef.current;
+    if (!audio || !remoteStream) return;
+    if (remoteAudioEnabled) {
+      audio.muted = true;
+      setRemoteAudioEnabled(false);
+      setRemoteAudioBlocked(false);
+      return;
+    }
+    audio.muted = false;
+    try {
+      await audio.play();
+      setRemoteAudioEnabled(true);
+      setRemoteAudioBlocked(false);
+    } catch {
+      audio.muted = true;
+      setRemoteAudioBlocked(true);
+    }
+  };
 
   // In-call chat from the stranger
   useEffect(() => {
@@ -197,11 +235,17 @@ export default function VideoCall({ localStream, remoteStream, callError, userId
             ref={remoteRef}
             autoPlay
             playsInline
-            onLoadedMetadata={(e) => { (e.target as HTMLVideoElement).play().catch(() => {}); }}
-            onCanPlay={(e) => { (e.target as HTMLVideoElement).play().catch(() => {}); }}
+            muted
+            onLoadedMetadata={() => { void playRemoteVideo(); }}
+            onCanPlay={() => { void playRemoteVideo(); }}
+            onPlaying={() => { setRemoteVideoPlaying(true); setRemoteVideoRetryNeeded(false); }}
+            onEmptied={() => setRemoteVideoPlaying(false)}
+            onWaiting={() => setRemoteVideoPlaying(false)}
+            onError={() => { setRemoteVideoPlaying(false); setRemoteVideoRetryNeeded(true); }}
             className="h-full w-full"
             style={{ objectFit: "cover", background: "#000" }}
           />
+          <audio ref={remoteAudioRef} autoPlay muted={!remoteAudioEnabled} className="sr-only" />
 
           {/* Connecting state */}
           {!remoteStream && (
@@ -218,6 +262,33 @@ export default function VideoCall({ localStream, remoteStream, callError, userId
               <div className="relative text-center">
                 <p className="text-sm font-medium text-fg">Connecting video…</p>
                 <p className="mt-1 text-xs text-fg-subtle">Waiting for the stranger's camera</p>
+              </div>
+            </div>
+          )}
+
+          {remoteStream && !remoteVideoPlaying && (
+            <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center px-6">
+              <div className="pointer-events-auto max-w-sm rounded-2xl border border-white/[0.12] bg-black/65 px-5 py-4 text-center text-white shadow-2xl backdrop-blur-xl">
+                <p className="text-sm font-medium">
+                  {remoteVideoRetryNeeded
+                    ? "Video playback hasn't started"
+                    : remoteStream.getVideoTracks().length > 0
+                      ? "Waiting for video frames…"
+                      : "Waiting for the stranger's camera"}
+                </p>
+                <p className="mt-1 text-xs text-white/65">
+                  {remoteVideoRetryNeeded
+                    ? "Tap below to retry video playback."
+                    : "Waiting for video from the other camera."}
+                </p>
+                {remoteVideoRetryNeeded && (
+                  <button
+                    onClick={() => { void playRemoteVideo(); }}
+                    className="mt-3 rounded-xl bg-white px-4 py-2 text-xs font-semibold text-black transition hover:bg-white/90"
+                  >
+                    Retry video
+                  </button>
+                )}
               </div>
             </div>
           )}
@@ -241,12 +312,17 @@ export default function VideoCall({ localStream, remoteStream, callError, userId
           </div>
 
           {/* Live badge */}
-          {remoteStream && remoteStream.getVideoTracks().length > 0 && (
+          {remoteVideoPlaying && (
             <div className="absolute left-4 top-4 flex items-center gap-1.5 rounded-lg border border-white/[0.12] bg-black/40 px-2.5 py-1 backdrop-blur-md">
               <span className="h-1.5 w-1.5 rounded-full bg-success" />
-              <span className="text-[11px] font-medium text-white">HD Live</span>
+              <span className="text-[11px] font-medium text-white">Video live</span>
             </div>
           )}
+          {remoteStream?.getAudioTracks().length ? (
+            <div className="absolute right-4 top-4 rounded-lg border border-white/[0.12] bg-black/40 px-2.5 py-1 text-[11px] font-medium text-white backdrop-blur-md">
+              {remoteAudioEnabled ? "Sound on" : "Sound off · Tap speaker to enable"}
+            </div>
+          ) : null}
 
           {/* Error banner */}
           {callError && (
@@ -277,6 +353,16 @@ export default function VideoCall({ localStream, remoteStream, callError, userId
           <CtrlButton onClick={() => { onEnd(); onNext?.(); }} label="Next stranger">
             <SkipForward size={19} />
           </CtrlButton>
+
+          {remoteStream?.getAudioTracks().length ? (
+            <CtrlButton
+              onClick={() => { void toggleRemoteAudio(); }}
+              label={remoteAudioEnabled ? "Mute stranger" : remoteAudioBlocked ? "Retry sound" : "Enable sound"}
+              active={remoteAudioEnabled}
+            >
+              {remoteAudioEnabled ? <Volume2 size={19} /> : <VolumeX size={19} />}
+            </CtrlButton>
+          ) : null}
 
           <CtrlButton onClick={toggleCam} label={camOff ? "Turn camera on" : "Turn camera off"} active={camOff} tone={camOff ? "danger" : "neutral"}>
             {camOff ? <VideoOff size={19} /> : <VideoIcon size={19} />}
