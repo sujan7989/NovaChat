@@ -27,6 +27,11 @@ Thumbs.db
 .vscode/settings.json
 .idea/
 
+# Local deploy-tool artifacts (machine-specific)
+.vercel/
+.vercelignore
+/vercel.json
+
 # Test coverage
 coverage/
 **/coverage/

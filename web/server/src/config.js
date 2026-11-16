@@ -110,7 +110,7 @@ export function isValidVibes(vibes) {
 export function isValidLanguage(lang) {
   if (typeof lang !== "string") return false;
   // Accept ISO codes (2-5 chars) AND full language names up to 30 chars
-  return lang.length >= 2 && lang.length <= 30 && /^[a-zA-Z\s\-]+$/.test(lang);
+  return lang.length >= 2 && lang.length <= 30 && /^[a-zA-Z\s-]+$/.test(lang);
 }
 
 export function isValidLanguages(languages) {

@@ -1,108 +1,173 @@
 import { useState, useEffect } from "react";
+import {
+  Gamepad2, Music, Film, Cpu, BookOpen, Plane, Pizza, Laugh, Palette, Trophy,
+  FlaskConical, Sparkles, Camera, Theater, Dumbbell, Dices, Globe, MapPin,
+  MessageCircle, Users, MoonStar, Clock, Heart, Brain, Flame, Snowflake,
+  Check, ArrowRight, ArrowLeft, type LucideIcon,
+} from "lucide-react";
 import type { Gender, Pref } from "../types";
+import { Button, LogoMark } from "./ui";
+import { cx } from "../lib";
 
-const INTERESTS = [
-  { icon: "🎮", label: "Gaming" },      { icon: "🎵", label: "Music" },
-  { icon: "🎬", label: "Movies" },      { icon: "💻", label: "Tech" },
-  { icon: "📚", label: "Books" },       { icon: "✈️", label: "Travel" },
-  { icon: "🍕", label: "Food" },        { icon: "😂", label: "Memes" },
-  { icon: "🎨", label: "Art" },         { icon: "⚽", label: "Sports" },
-  { icon: "🧠", label: "Science" },     { icon: "💃", label: "Dance" },
-  { icon: "📸", label: "Photography" }, { icon: "🎭", label: "Theatre" },
-  { icon: "🏋️", label: "Fitness" },    { icon: "🎲", label: "Board Games" },
+interface Option {
+  value: string;
+  label: string;
+  desc?: string;
+  icon: LucideIcon;
+}
+
+const INTERESTS: Option[] = [
+  { value: "Gaming", label: "Gaming", icon: Gamepad2 },
+  { value: "Music", label: "Music", icon: Music },
+  { value: "Movies", label: "Movies", icon: Film },
+  { value: "Tech", label: "Tech", icon: Cpu },
+  { value: "Books", label: "Books", icon: BookOpen },
+  { value: "Travel", label: "Travel", icon: Plane },
+  { value: "Food", label: "Food", icon: Pizza },
+  { value: "Memes", label: "Memes", icon: Laugh },
+  { value: "Art", label: "Art", icon: Palette },
+  { value: "Sports", label: "Sports", icon: Trophy },
+  { value: "Science", label: "Science", icon: FlaskConical },
+  { value: "Dance", label: "Dance", icon: Sparkles },
+  { value: "Photography", label: "Photography", icon: Camera },
+  { value: "Theatre", label: "Theatre", icon: Theater },
+  { value: "Fitness", label: "Fitness", icon: Dumbbell },
+  { value: "Board Games", label: "Board Games", icon: Dices },
 ];
 
-const LANGUAGES = [
-  { code: "telugu",    label: "Telugu",    icon: "తె" },
-  { code: "hindi",     label: "Hindi",     icon: "हि" },
-  { code: "tamil",     label: "Tamil",     icon: "த" },
-  { code: "kannada",   label: "Kannada",   icon: "ಕ" },
-  { code: "malayalam", label: "Malayalam", icon: "മ" },
-  { code: "marathi",   label: "Marathi",   icon: "म" },
-  { code: "bengali",   label: "Bengali",   icon: "বা" },
-  { code: "punjabi",   label: "Punjabi",   icon: "ਪੰ" },
-  { code: "gujarati",  label: "Gujarati",  icon: "ગુ" },
-  { code: "odia",      label: "Odia",      icon: "ଓ" },
-  { code: "english",   label: "English",   icon: "🌐" },
-  { code: "andhra",    label: "Andhra",    icon: "🗺️" },
-  { code: "telangana", label: "Telangana", icon: "🏙️" },
+const LANGUAGES: { code: string; label: string; glyph: string; icon?: LucideIcon }[] = [
+  { code: "telugu", label: "Telugu", glyph: "తె" },
+  { code: "hindi", label: "Hindi", glyph: "हि" },
+  { code: "tamil", label: "Tamil", glyph: "த" },
+  { code: "kannada", label: "Kannada", glyph: "ಕ" },
+  { code: "malayalam", label: "Malayalam", glyph: "മ" },
+  { code: "marathi", label: "Marathi", glyph: "म" },
+  { code: "bengali", label: "Bengali", glyph: "বা" },
+  { code: "punjabi", label: "Punjabi", glyph: "ਪੰ" },
+  { code: "gujarati", label: "Gujarati", glyph: "ગુ" },
+  { code: "odia", label: "Odia", glyph: "ଓ" },
+  { code: "english", label: "English", glyph: "EN", icon: Globe },
+  { code: "andhra", label: "Andhra", glyph: "AP", icon: MapPin },
+  { code: "telangana", label: "Telangana", glyph: "TS", icon: MapPin },
 ];
 
-const VIBES = [
-  { code: "chatting", label: "Just Chatting", icon: "💬", desc: "Casual conversation" },
-  { code: "friends",  label: "Make Friends",  icon: "🤝", desc: "Long-term connection" },
-  { code: "nightowl", label: "Night Owl",     icon: "🌙", desc: "Late night vibes" },
-  { code: "bored",    label: "Bored",         icon: "😴", desc: "Kill some time" },
-  { code: "flirty",   label: "Flirty",        icon: "😏", desc: "Playful energy" },
-  { code: "deep",     label: "Deep Talk",     icon: "🧠", desc: "Meaningful convos" },
-  { code: "fun",      label: "Fun & Memes",   icon: "🔥", desc: "Laugh together" },
-  { code: "chill",    label: "Chill",         icon: "😎", desc: "No pressure" },
+const VIBES: Option[] = [
+  { value: "chatting", label: "Just Chatting", desc: "Casual conversation", icon: MessageCircle },
+  { value: "friends", label: "Make Friends", desc: "Long-term connection", icon: Users },
+  { value: "nightowl", label: "Night Owl", desc: "Late night vibes", icon: MoonStar },
+  { value: "bored", label: "Bored", desc: "Kill some time", icon: Clock },
+  { value: "flirty", label: "Flirty", desc: "Playful energy", icon: Heart },
+  { value: "deep", label: "Deep Talk", desc: "Meaningful convos", icon: Brain },
+  { value: "fun", label: "Fun & Memes", desc: "Laugh together", icon: Flame },
+  { value: "chill", label: "Chill", desc: "No pressure", icon: Snowflake },
 ];
 
-const GENDERS: { value: Gender; label: string; icon: string }[] = [
-  { value: "male",   label: "Male",   icon: "👨" },
-  { value: "female", label: "Female", icon: "👩" },
-  { value: "other",  label: "Other",  icon: "🧑" },
+const GENDERS: { value: Gender; label: string }[] = [
+  { value: "male", label: "Male" },
+  { value: "female", label: "Female" },
+  { value: "other", label: "Other" },
 ];
 
-const PREFS: { value: Pref; label: string; icon: string }[] = [
-  { value: "male",   label: "Guys",   icon: "👨" },
-  { value: "female", label: "Girls",  icon: "👩" },
-  { value: "any",    label: "Anyone", icon: "🌍" },
+const PREFS: { value: Pref; label: string }[] = [
+  { value: "male", label: "Guys" },
+  { value: "female", label: "Girls" },
+  { value: "any", label: "Anyone" },
 ];
 
 interface Props {
   onDone: (gender: Gender, pref: Pref, interests: string[], languages: string[], vibes: string[]) => void;
 }
 
-function lcg(s: number) { return (s * 9301 + 49297) % 233280; }
+const STEP_TITLES = ["About you", "Your interests", "Your language", "Your vibe"];
+const STEP_SUBS = [
+  "Help us find the right match for you.",
+  "Select any that apply — we match on shared ones.",
+  "Pick a language to meet people who speak it.",
+  "Set the energy you're bringing today.",
+];
 
-function SpaceBg() {
-  const stars = Array.from({ length: 90 }, (_, i) => {
-    let s = lcg(i + 3);
-    const x = (s / 233280) * 100; s = lcg(s);
-    const y = (s / 233280) * 100; s = lcg(s);
-    const size = (s / 233280) * 2 + 0.6; s = lcg(s);
-    const opacity = (s / 233280) * 0.5 + 0.12; s = lcg(s);
-    const dur = (s / 233280) * 4 + 2.5; s = lcg(s);
-    const delay = (s / 233280) * 6;
-    const colors = ["#ffffff", "#c084fc", "#818cf8", "#f472b6", "#ffffff"];
-    return { x, y, size, opacity, dur, delay, color: colors[i % colors.length] };
-  });
+/* ── Selectable tile ─────────────────────────────────────────────────── */
+function Tile({
+  selected,
+  onClick,
+  icon: Icon,
+  glyph,
+  label,
+  desc,
+}: {
+  selected: boolean;
+  onClick: () => void;
+  icon?: LucideIcon;
+  glyph?: string;
+  label: string;
+  desc?: string;
+}) {
   return (
-    <div className="absolute inset-0 overflow-hidden pointer-events-none">
-      {stars.map((s, i) => (
-        <div key={i} className="absolute rounded-full" style={{
-          left: `${s.x}%`, top: `${s.y}%`,
-          width: `${s.size}px`, height: `${s.size}px`,
-          background: s.color, opacity: s.opacity,
-          animation: `starTwinkle ${s.dur}s ease-in-out ${s.delay}s infinite`,
-        }} />
-      ))}
-      <div className="absolute animate-aurora" style={{
-        top: "-20%", left: "-10%", width: 700, height: 700,
-        background: "radial-gradient(ellipse,rgba(99,102,241,0.15) 0%,transparent 65%)", filter: "blur(60px)",
-      }} />
-      <div className="absolute animate-aurora2" style={{
-        bottom: "-20%", right: "-10%", width: 600, height: 600,
-        background: "radial-gradient(ellipse,rgba(236,72,153,0.12) 0%,transparent 65%)", filter: "blur(60px)",
-      }} />
-    </div>
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={selected}
+      className={cx(
+        "group relative flex flex-col items-center justify-center gap-2 rounded-2xl border px-2 py-4 text-center backdrop-blur-md",
+        "transition-all duration-150 active:scale-[0.97]",
+        selected
+          ? "border-accent/60 bg-accent-soft shadow-[0_0_0_1px_rgba(110,107,245,0.35),0_10px_30px_-14px_rgba(110,107,245,0.75)]"
+          : "border-white/[0.07] bg-white/[0.035] hover:border-white/[0.14] hover:bg-white/[0.06]"
+      )}
+    >
+      {selected && (
+        <span className="absolute right-2 top-2 grid h-4 w-4 place-items-center rounded-full bg-accent">
+          <Check size={10} strokeWidth={3.5} color="#fff" />
+        </span>
+      )}
+      <span
+        className={cx(
+          "grid place-items-center transition-colors",
+          selected ? "text-accent-hover" : "text-fg-muted group-hover:text-fg"
+        )}
+      >
+        {Icon ? (
+          <Icon size={22} strokeWidth={1.9} />
+        ) : (
+          <span className="text-[19px] font-semibold leading-none">{glyph}</span>
+        )}
+      </span>
+      <span className={cx("text-[12.5px] font-medium leading-tight", selected ? "text-fg" : "text-fg-muted")}>
+        {label}
+      </span>
+      {desc && <span className="text-[10.5px] leading-tight text-fg-subtle">{desc}</span>}
+    </button>
   );
 }
 
-function CheckBadge() {
+function Pill({
+  selected,
+  onClick,
+  label,
+}: {
+  selected: boolean;
+  onClick: () => void;
+  label: string;
+}) {
   return (
-    <span className="absolute top-2 right-2 w-5 h-5 rounded-full bg-green-500 flex items-center justify-center text-white font-bold animate-scale-in"
-      style={{ fontSize: 11 }}>✓</span>
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={selected}
+      className={cx(
+        "h-11 rounded-xl border text-sm font-medium backdrop-blur-md transition-all duration-150 active:scale-[0.97]",
+        selected
+          ? "border-accent/60 bg-accent-soft text-fg shadow-[0_0_0_1px_rgba(110,107,245,0.30)]"
+          : "border-white/[0.07] bg-white/[0.035] text-fg-muted hover:border-white/[0.14] hover:text-fg"
+      )}
+    >
+      {label}
+    </button>
   );
 }
-
-const STEP_LABELS = ["About You", "Interests", "Language", "Vibe"];
 
 export default function Setup({ onDone }: Props) {
   const [step, setStep] = useState(1);
-  const [animKey, setAnimKey] = useState(0);
   const [gender, setGender] = useState<Gender | null>(null);
   const [pref, setPref] = useState<Pref | null>(null);
   const [interests, setInterests] = useState<string[]>([]);
@@ -110,12 +175,15 @@ export default function Setup({ onDone }: Props) {
   const [vibes, setVibes] = useState<string[]>([]);
   const [visible, setVisible] = useState(false);
 
-  useEffect(() => { setTimeout(() => setVisible(true), 60); }, []);
-
-  const goTo = (s: number) => { setStep(s); setAnimKey(k => k + 1); };
+  useEffect(() => {
+    const t = setTimeout(() => setVisible(true), 50);
+    return () => clearTimeout(t);
+  }, []);
 
   const toggle = <T,>(arr: T[], val: T): T[] =>
-    arr.includes(val) ? arr.filter(x => x !== val) : [...arr, val];
+    arr.includes(val) ? arr.filter((x) => x !== val) : [...arr, val];
+
+  const goTo = (s: number) => setStep(s);
 
   const skip = () => {
     if (step < 4) goTo(step + 1);
@@ -127,200 +195,154 @@ export default function Setup({ onDone }: Props) {
     else onDone(gender!, pref!, interests, languages, vibes);
   };
 
-  const cardStyle = (sel: boolean) => ({
-    background: sel ? "rgba(99,102,241,0.22)" : "rgba(255,255,255,0.07)",
-    border: `1px solid ${sel ? "rgba(139,92,246,0.85)" : "rgba(255,255,255,0.18)"}`,
-    boxShadow: sel ? "0 0 24px rgba(99,102,241,0.35), inset 0 1px 0 rgba(255,255,255,0.1)" : "inset 0 1px 0 rgba(255,255,255,0.05)",
-  });
+  const canContinue = step === 1 ? Boolean(gender && pref) : true;
 
-  const ctaText = () => {
-    if (step === 2 && interests.length > 0)
-      return `Continue with ${interests.length} interest${interests.length > 1 ? "s" : ""} →`;
-    if (step === 3 && languages.length === 1)
-      return `Continue with ${LANGUAGES.find(l => l.code === languages[0])?.label} →`;
-    if (step === 3 && languages.length > 1)
-      return `Continue with ${languages.length} languages →`;
-    if (step === 4) return "Find a Stranger 🚀";
-    return "Continue →";
+  const ctaLabel = () => {
+    if (step === 2 && interests.length)
+      return `Continue with ${interests.length} interest${interests.length > 1 ? "s" : ""}`;
+    if (step === 3 && languages.length)
+      return `Continue with ${languages.length} language${languages.length > 1 ? "s" : ""}`;
+    if (step === 4) return "Find a stranger";
+    return "Continue";
   };
 
-  const renderCTA = (onClick: () => void, onBack?: () => void) => (
-    <div className="w-full flex flex-col gap-3">
-      <button onClick={onClick}
-        className="w-full py-3.5 rounded-2xl font-bold text-base text-white grad-btn relative overflow-hidden group"
-        style={{ boxShadow: "0 8px 32px rgba(99,102,241,0.45)" }}>
-        <span className="relative z-10">{ctaText()}</span>
-        <span className="absolute inset-0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700"
-          style={{ background: "linear-gradient(90deg,transparent,rgba(255,255,255,0.2),transparent)" }} />
-      </button>
-      <div className="flex items-center gap-3">
-        {onBack && (
-          <button onClick={onBack}
-            className="flex-1 py-3 rounded-2xl font-semibold text-sm text-white transition-all hover:scale-105 active:scale-95"
-            style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.2)" }}>
-            ← Back
-          </button>
-        )}
-        <button onClick={skip}
-          className="flex-1 py-3 rounded-2xl font-semibold text-sm text-white transition-all hover:scale-105 active:scale-95"
-          style={{ background: "rgba(99,102,241,0.15)", border: "1px solid rgba(139,92,246,0.35)" }}>
-          Skip →
-        </button>
-      </div>
-    </div>
-  );
-
   return (
-    <div className={`h-full w-full flex flex-col relative overflow-hidden aurora-bg transition-opacity duration-500 ${visible ? "opacity-100" : "opacity-0"}`}>
-      <SpaceBg />
+    <div
+      className={cx(
+        "relative flex h-full w-full flex-col overflow-hidden bg-bg transition-opacity duration-500",
+        visible ? "opacity-100" : "opacity-0"
+      )}
+    >
+      <div className="pointer-events-none absolute inset-0 aurora" />
+      <div className="pointer-events-none absolute inset-0 grid-fade" />
+      <div className="pointer-events-none absolute inset-0 noise" />
 
-      {/* Step progress — simple dots */}
-      <div className="relative z-20 pt-4 pb-1 flex justify-center shrink-0">
-        <div className="flex items-center gap-2">
-          {STEP_LABELS.map((_, i) => {
-            const n = i + 1;
-            const done = step > n;
-            const active = step === n;
-            return (
-              <div key={n} className="flex items-center gap-2">
-                <div className="rounded-full transition-all duration-300"
-                  style={{
-                    width: active ? 24 : 8,
-                    height: 8,
-                    background: done ? "#22c55e" : active ? "linear-gradient(90deg,#6366f1,#8b5cf6)" : "rgba(255,255,255,0.12)",
-                  }} />
+      {/* Header */}
+      <header className="relative z-10 flex shrink-0 items-center justify-between px-5 pt-5">
+        <LogoMark size={28} />
+        <span className="text-[12px] font-medium tabular-nums text-fg-subtle">
+          Step {step} of 4
+        </span>
+      </header>
+
+      {/* Progress rail */}
+      <div className="relative z-10 mx-auto mt-4 flex w-full max-w-2xl shrink-0 gap-1.5 px-5">
+        {STEP_TITLES.map((t, i) => (
+          <div
+            key={t}
+            className={cx(
+              "h-1 flex-1 rounded-full transition-colors duration-300",
+              step > i + 1 ? "bg-accent" : step === i + 1 ? "bg-accent/60" : "bg-line"
+            )}
+          />
+        ))}
+      </div>
+
+      {/* Step body */}
+      <main key={step} className="relative z-10 flex-1 overflow-y-auto px-5 py-7">
+        <div className="mx-auto flex w-full max-w-2xl flex-col">
+          <h1 className="animate-fade-up text-[26px] font-semibold tracking-[-0.02em] text-fg">
+            {STEP_TITLES[step - 1]}
+          </h1>
+          <p className="mt-1.5 text-sm text-fg-muted">{STEP_SUBS[step - 1]}</p>
+
+          {step === 1 && (
+            <div className="mt-7 space-y-7">
+              <div>
+                <p className="mb-3 text-[13px] font-medium text-fg-muted">I am a</p>
+                <div className="grid max-w-sm grid-cols-3 gap-2.5">
+                  {GENDERS.map((g) => (
+                    <Pill
+                      key={g.value}
+                      label={g.label}
+                      selected={gender === g.value}
+                      onClick={() => setGender(g.value)}
+                    />
+                  ))}
+                </div>
               </div>
-            );
-          })}
+              <div>
+                <p className="mb-3 text-[13px] font-medium text-fg-muted">I want to chat with</p>
+                <div className="grid max-w-sm grid-cols-3 gap-2.5">
+                  {PREFS.map((p) => (
+                    <Pill
+                      key={p.value}
+                      label={p.label}
+                      selected={pref === p.value}
+                      onClick={() => setPref(p.value)}
+                    />
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {step === 2 && (
+            <div className="mt-7 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+              {INTERESTS.map((item) => (
+                <Tile
+                  key={item.value}
+                  label={item.label}
+                  icon={item.icon}
+                  selected={interests.includes(item.value)}
+                  onClick={() => setInterests((p) => toggle(p, item.value))}
+                />
+              ))}
+            </div>
+          )}
+
+          {step === 3 && (
+            <div className="mt-7 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+              {LANGUAGES.map((lang) => (
+                <Tile
+                  key={lang.code}
+                  label={lang.label}
+                  glyph={lang.glyph}
+                  icon={lang.icon}
+                  selected={languages.includes(lang.code)}
+                  onClick={() => setLanguages((p) => toggle(p, lang.code))}
+                />
+              ))}
+            </div>
+          )}
+
+          {step === 4 && (
+            <div className="mt-7 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+              {VIBES.map((vibe) => (
+                <Tile
+                  key={vibe.value}
+                  label={vibe.label}
+                  desc={vibe.desc}
+                  icon={vibe.icon}
+                  selected={vibes.includes(vibe.value)}
+                  onClick={() => setVibes((p) => toggle(p, vibe.value))}
+                />
+              ))}
+            </div>
+          )}
         </div>
-      </div>
+      </main>
 
-      <div key={animKey} className="relative z-10 flex flex-col items-center justify-start flex-1 px-4 py-4 step-enter overflow-y-auto" style={{ WebkitOverflowScrolling: "touch" }}>
-
-        {/* STEP 1 */}
-        {step === 1 && (
-          <>
-            <h1 className="text-2xl sm:text-4xl font-black text-white mb-1 text-center">Who are you? 🙋</h1>
-            <p className="text-sm mb-6 text-center" style={{ color: "#64748b" }}>Help us find the right match.</p>
-            <div className="w-full max-w-lg space-y-8">
-              <div>
-                <p className="text-sm font-bold mb-3 text-center" style={{ color: "#e2e8f0" }}>I am a</p>
-                <div className="grid grid-cols-3 gap-3">
-                  {GENDERS.map(g => (
-                    <button key={g.value} onClick={() => setGender(g.value)}
-                      className="relative flex flex-col items-center gap-2 py-4 sm:py-5 rounded-2xl transition-all duration-200 hover:scale-105 active:scale-95"
-                      style={cardStyle(gender === g.value)}>
-                      {gender === g.value && <CheckBadge />}
-                      <span className="text-4xl">{g.icon}</span>
-                      <span className="text-sm font-bold" style={{ color: gender === g.value ? "#c4b5fd" : "#e2e8f0" }}>{g.label}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <p className="text-sm font-bold mb-3 text-center" style={{ color: "#e2e8f0" }}>I want to chat with</p>
-                <div className="grid grid-cols-3 gap-3">
-                  {PREFS.map(p => (
-                    <button key={p.value} onClick={() => setPref(p.value)}
-                      className="relative flex flex-col items-center gap-2 py-4 sm:py-5 rounded-2xl transition-all duration-200 hover:scale-105 active:scale-95"
-                      style={cardStyle(pref === p.value)}>
-                      {pref === p.value && <CheckBadge />}
-                      <span className="text-4xl">{p.icon}</span>
-                      <span className="text-sm font-bold" style={{ color: pref === p.value ? "#c4b5fd" : "#e2e8f0" }}>{p.label}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-            <div className="w-full max-w-lg mt-6">
-              <button onClick={next} disabled={!gender || !pref}
-                className="w-full py-3.5 rounded-2xl font-bold text-base text-white grad-btn relative overflow-hidden group disabled:opacity-40 disabled:cursor-not-allowed"
-                style={{ boxShadow: "0 8px 32px rgba(99,102,241,0.45)" }}>
-                <span className="relative z-10">Continue →</span>
-                <span className="absolute inset-0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700"
-                  style={{ background: "linear-gradient(90deg,transparent,rgba(255,255,255,0.2),transparent)" }} />
-              </button>
-            </div>
-          </>
-        )}
-
-        {/* STEP 2 */}
-        {step === 2 && (
-          <>
-            <h1 className="text-2xl sm:text-4xl font-black text-white mb-1 text-center">What's your thing? ✨</h1>
-            <p className="text-sm mb-5 text-center" style={{ color: "#64748b" }}>Pick any — we'll match you with people who share them.</p>
-            <div className="w-full max-w-2xl grid grid-cols-2 sm:grid-cols-4 gap-3">
-              {INTERESTS.map(item => {
-                const sel = interests.includes(item.label);
-                return (
-                  <button key={item.label} onClick={() => setInterests(p => toggle(p, item.label))}
-                    className="relative flex flex-col items-center gap-2 py-4 sm:py-5 rounded-2xl transition-all duration-200 hover:scale-105 active:scale-95"
-                    style={cardStyle(sel)}>
-                    {sel && <CheckBadge />}
-                    <span className="text-3xl">{item.icon}</span>
-                    <span className="text-xs font-bold" style={{ color: sel ? "#c4b5fd" : "#94a3b8" }}>{item.label}</span>
-                  </button>
-                );
-              })}
-            </div>
-            <div className="w-full max-w-2xl mt-6">
-              {renderCTA(next, () => goTo(1))}
-            </div>
-          </>
-        )}
-
-        {/* STEP 3 */}
-        {step === 3 && (
-          <>
-            <h1 className="text-2xl sm:text-4xl font-black text-white mb-1 text-center">Speak my language 🗣️</h1>
-            <p className="text-sm mb-5 text-center" style={{ color: "#64748b" }}>Pick one to match with people who speak it.</p>
-            <div className="w-full max-w-2xl grid grid-cols-2 sm:grid-cols-4 gap-3">
-              {LANGUAGES.map(lang => {
-                const sel = languages.includes(lang.code);
-                return (
-                  <button key={lang.code} onClick={() => setLanguages(p => toggle(p, lang.code))}
-                    className="relative flex flex-col items-center gap-2 py-4 sm:py-5 rounded-2xl transition-all duration-200 hover:scale-105 active:scale-95"
-                    style={cardStyle(sel)}>
-                    {sel && <CheckBadge />}
-                    <span className="text-2xl font-black" style={{ color: sel ? "#c4b5fd" : "#94a3b8" }}>{lang.icon}</span>
-                    <span className="text-xs font-bold" style={{ color: sel ? "#c4b5fd" : "#94a3b8" }}>{lang.label}</span>
-                  </button>
-                );
-              })}
-            </div>
-            <div className="w-full max-w-2xl mt-6">
-              {renderCTA(next, () => goTo(2))}
-            </div>
-          </>
-        )}
-
-        {/* STEP 4 */}
-        {step === 4 && (
-          <>
-            <h1 className="text-2xl sm:text-4xl font-black text-white mb-1 text-center">What's your mood? ✦</h1>
-            <p className="text-sm mb-5 text-center" style={{ color: "#64748b" }}>Let strangers know your energy.</p>
-            <div className="w-full max-w-2xl grid grid-cols-2 sm:grid-cols-4 gap-3">
-              {VIBES.map(vibe => {
-                const sel = vibes.includes(vibe.code);
-                return (
-                  <button key={vibe.code} onClick={() => setVibes(p => toggle(p, vibe.code))}
-                    className="relative flex flex-col items-center gap-2 py-4 sm:py-5 px-2 rounded-2xl transition-all duration-200 hover:scale-105 active:scale-95"
-                    style={cardStyle(sel)}>
-                    {sel && <CheckBadge />}
-                    <span className="text-3xl">{vibe.icon}</span>
-                    <span className="text-sm font-bold text-center" style={{ color: sel ? "#c4b5fd" : "#e2e8f0" }}>{vibe.label}</span>
-                    <span className="text-xs text-center" style={{ color: "#475569" }}>{vibe.desc}</span>
-                  </button>
-                );
-              })}
-            </div>
-            <div className="w-full max-w-2xl mt-6">
-              {renderCTA(next, () => goTo(3))}
-            </div>
-          </>
-        )}
-
-      </div>
+      {/* Footer CTA */}
+      <footer className="relative z-10 shrink-0 border-t border-white/[0.08] bg-white/[0.03] px-5 py-4 backdrop-blur-2xl safe-bottom">
+        <div className="mx-auto flex w-full max-w-2xl items-center gap-3">
+          {step > 1 && (
+            <Button variant="secondary" size="lg" onClick={() => goTo(step - 1)} className="shrink-0">
+              <ArrowLeft size={16} />
+              Back
+            </Button>
+          )}
+          <Button size="lg" className="group flex-1" disabled={!canContinue} onClick={next}>
+            {ctaLabel()}
+            <ArrowRight size={17} className="transition-transform group-hover:translate-x-0.5" />
+          </Button>
+          {step < 4 && (
+            <Button variant="ghost" size="lg" onClick={skip} className="shrink-0">
+              Skip
+            </Button>
+          )}
+        </div>
+      </footer>
     </div>
   );
 }

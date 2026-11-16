@@ -1,0 +1,34 @@
+# Render Blueprint — NovaChat server (free tier)
+# Docs: https://render.com/docs/blueprint-spec
+#
+# Deploy: push this file, then in Render → New → Blueprint → pick this repo.
+# Render provisions the service from the config below.
+services:
+  - type: web
+    name: novachat-server
+    runtime: node
+    plan: free
+    region: singapore          # closest free region to the target audience
+    rootDir: web/server
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # Global client origin — used for CORS allow-listing / links.
+      - key: CLIENT_URL
+        value: https://novachat-three.vercel.app
+      # Upstash Redis URL (rediss://…). Leave blank to run on the in-memory store.
+      - key: REDIS_URL
+        sync: false
+      # Auto-generated strong secret on first deploy.
+      - key: JWT_SECRET
+        generateValue: true
+      # Optional — AI icebreakers / chat summaries (https://console.groq.com)
+      - key: GROQ_API_KEY
+        sync: false
+      # Optional — Metered TURN for reliable video calls (https://metered.ca)
+      - key: METERED_API_KEY
+        sync: false

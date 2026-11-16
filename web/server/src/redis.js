@@ -152,6 +152,11 @@ export async function ping() {
   await redis.ping();
 }
 
+/** Close the Redis connection (graceful shutdown). */
+export async function close() {
+  await redis.quit();
+}
+
 export default redis;
 
 // ── Rating system ──────────────────────────────────────────────────────────

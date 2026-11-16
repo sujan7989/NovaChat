@@ -49,13 +49,6 @@ export async function enqueue(userId, gender, pref, interests, languages, vibes)
   });
 }
 
-// Does user A's gender pref accept user B, and vice versa?
-function genderMatch(myGender, myPref, theirGender, theirPref) {
-  const iWantThem  = myPref    === "any" || myPref    === theirGender;
-  const theyWantMe = theirPref === "any" || theirPref === myGender;
-  return iWantThem && theyWantMe;
-}
-
 function hasOverlap(a, b) {
   if (!a.length || !b.length) return false;
   return a.some(x => b.includes(x));
@@ -151,6 +144,11 @@ export async function decrementStat(key) {
 
 export async function ping() {
   // In-memory store is always available
+  return true;
+}
+
+/** No resources to release for the in-memory store. */
+export async function close() {
   return true;
 }
 

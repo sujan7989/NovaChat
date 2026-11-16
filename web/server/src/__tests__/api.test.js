@@ -12,7 +12,7 @@ vi.mock('ioredis', () => {
 
 let app;
 let validateFindPayload, validateMessagePayload, validateImagePayload, validateUserIdPayload;
-let initStore, getStore;
+let getStore;
 
 beforeAll(async () => {
   const appModule = await import('../index.js');
@@ -25,7 +25,6 @@ beforeAll(async () => {
   validateUserIdPayload = validationModule.validateUserIdPayload;
 
   const storeModule = await import('../store.js');
-  initStore = storeModule.initStore;
   getStore = storeModule.getStore;
 });
 

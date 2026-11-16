@@ -1,73 +1,63 @@
-# React + TypeScript + Vite
+# NovaChat — Client
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+React 19 + TypeScript + Vite + Tailwind CSS v4 front-end for NovaChat, an
+anonymous chat platform with text, image, and live video (WebRTC) chat.
 
-Currently, two official plugins are available:
+Live: [novachat-three.vercel.app](https://novachat-three.vercel.app)
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Requirements
 
-## React Compiler
+- Node.js 20+
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Local development
 
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm install
+cp .env.example .env   # leave VITE_API_URL unset to use the dev proxy
+npm run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+The Vite dev server proxies `/api` and `/socket.io` to the backend at
+`http://localhost:4000` (see `vite.config.ts`), so run the server first:
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+```bash
+cd ../server && npm install && npm run dev
+```
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+Open http://localhost:5173.
+
+## Scripts
+
+| Script | Description |
+|---|---|
+| `npm run dev` | Start the Vite dev server with HMR |
+| `npm run build` | Type-check (`tsc -b`) and build for production into `dist/` |
+| `npm run lint` | Run ESLint |
+| `npm run preview` | Preview the production build locally |
+
+## Configuration
+
+The client reads a single environment variable:
+
+| Variable | Description |
+|---|---|
+| `VITE_API_URL` | Backend origin used for REST calls and the Socket.IO connection. Unset in development (same-origin dev proxy). Set to your deployed server URL in production (see `.env.production`). |
+
+## Project structure
+
+```
+src/
+├── components/
+│   ├── Landing.tsx     # Marketing / landing screen
+│   ├── Setup.tsx       # 4-step preference setup
+│   ├── Chat.tsx        # Main text-chat experience
+│   ├── VideoCall.tsx   # WebRTC video-call overlay
+│   └── ui.tsx          # Shared design-system primitives
+├── lib.ts              # Small shared helpers (cx)
+├── socket.ts           # Socket.IO client + env-driven API origin
+├── useWebRTC.ts        # Peer connection / TURN / signaling hook
+├── types.ts            # Shared TypeScript types
+├── index.css           # Tailwind v4 theme tokens + base styles
+├── App.tsx             # App shell, error boundary, routing
+└── main.tsx            # Entry point
 ```

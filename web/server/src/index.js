@@ -4,16 +4,20 @@ import { Server } from "socket.io";
 import cors from "cors";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
-import { initStore, getStore } from "./store.js";
+import { initStore, getStore, closeStore } from "./store.js";
 import { initSocket, getOnlineCount } from "./socket.js";
 import { createLogger } from "./logger.js";
-import { getPublicConfig } from "./config.js";
+import { getPublicConfig, SHUTDOWN_TIMEOUT } from "./config.js";
 import healthMonitor from "./monitoring.js";
 
 const logger = createLogger("server");
 const PORT = process.env.PORT || 4000;
 
 const app = express();
+// Behind a reverse proxy (Railway / Vercel / nginx) — trust the first hop so
+// req.ip and rate limiting use the real client address instead of the proxy's.
+app.set("trust proxy", 1);
+
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
   cors: { origin: "*", methods: ["GET", "POST"] },
@@ -34,6 +38,12 @@ app.use(helmet({
 }));
 app.use(express.json({ limit: "1mb" }));
 
+// Health check — registered before the rate limiter so platform probes
+// (Railway / UptimeRobot) are never throttled.
+app.get("/api/health", (req, res) => {
+  res.json({ status: "ok", uptime: process.uptime(), timestamp: Date.now() });
+});
+
 // Rate limiting for public API endpoints
 const apiLimiter = rateLimit({
   windowMs: 60 * 1000,
@@ -43,10 +53,6 @@ const apiLimiter = rateLimit({
   message: { error: "Too many requests, please try again later." },
 });
 app.use("/api/", apiLimiter);
-
-app.get("/api/health", (req, res) => {
-  res.json({ status: "ok", uptime: process.uptime(), timestamp: Date.now() });
-});
 
 // Public config endpoint — exposes non-secret config for clients/tests
 app.get("/api/config", (req, res) => {
@@ -106,21 +112,47 @@ app.use((req, res) => {
   res.status(404).json({ error: "Not found" });
 });
 
-process.on("SIGTERM", () => {
+let shuttingDown = false;
+
+async function shutdown(signal) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  logger.info(`${signal} received — graceful shutdown started`);
   healthMonitor.stop();
-  httpServer.close(() => process.exit(0));
-});
-process.on("SIGINT", () => {
-  healthMonitor.stop();
-  httpServer.close(() => process.exit(0));
-});
+
+  // Hard deadline — never hang a deploy/restart.
+  const forceExit = setTimeout(() => {
+    logger.error("Shutdown timed out — forcing exit");
+    process.exit(1);
+  }, SHUTDOWN_TIMEOUT);
+  forceExit.unref();
+
+  try {
+    // Close Socket.IO (and the underlying HTTP server) — waits for active
+    // connections to finish.
+    await new Promise((resolve) => io.close(() => resolve()));
+    await closeStore();
+    clearTimeout(forceExit);
+    logger.info("Shutdown complete");
+    process.exit(0);
+  } catch (err) {
+    logger.error(`Shutdown error: ${err.message}`);
+    process.exit(1);
+  }
+}
+
+process.on("SIGTERM", () => shutdown("SIGTERM"));
+process.on("SIGINT", () => shutdown("SIGINT"));
 
 // Prevent unhandled promise rejections from crashing the server
 process.on("unhandledRejection", (reason) => {
   logger.error(`Unhandled rejection: ${reason}`);
 });
+// An uncaught exception leaves the process in an undefined state — log it and
+// shut down cleanly so the platform can restart a fresh instance.
 process.on("uncaughtException", (err) => {
   logger.error(`Uncaught exception: ${err.message}`);
+  shutdown("uncaughtException");
 });
 
 async function boot() {

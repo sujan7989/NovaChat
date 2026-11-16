@@ -1,16 +1,17 @@
 {
-  "name": "novachat-server",
+  "name": "novachat",
   "version": "1.0.0",
+  "private": true,
   "type": "module",
+  "description": "NovaChat — anonymous chat platform (React client + Node server)",
   "scripts": {
     "start": "node web/server/src/index.js",
-    "dev": "nodemon src/index.js",
-    "test": "vitest",
-    "test:watch": "vitest --watch",
-    "test:coverage": "vitest --coverage",
-    "lint": "eslint src",
-    "lint:fix": "eslint src --fix",
-    "swagger": "swagger-jsdoc -d swaggerDef.js src/*.js -o swagger.json"
+    "dev:server": "npm --prefix web/server run dev",
+    "dev:client": "npm --prefix web/client run dev",
+    "build:client": "npm --prefix web/client run build",
+    "test": "npm --prefix web/server test",
+    "lint": "npm --prefix web/server run lint && npm --prefix web/client run lint",
+    "install:all": "npm --prefix web/server install && npm --prefix web/client install"
   },
   "dependencies": {
     "bad-words": "^4.0.0",

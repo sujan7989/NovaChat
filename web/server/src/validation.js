@@ -1,5 +1,4 @@
-import { isValidUserId, isValidGender, isValidPref, isValidInterests, isValidVibes, isValidLanguages, sanitizeString, isValidDataUrl, MAX_CAPTION_LENGTH, getPublicConfig } from "./config.js";
-import { getStore } from "./store.js";
+import { isValidUserId, isValidGender, isValidPref, isValidInterests, isValidVibes, isValidLanguages, sanitizeString, isValidDataUrl, MAX_CAPTION_LENGTH } from "./config.js";
 
 /**
  * Validates socket event payload for 'find' and 'next' events

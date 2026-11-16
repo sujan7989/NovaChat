@@ -1,28 +1,36 @@
 import { io } from "socket.io-client";
 
-const URL = import.meta.env.VITE_SOCKET_URL || "https://novachat-production-57d2.up.railway.app";
+/**
+ * Backend origin. Configured via VITE_API_URL.
+ *  - Production: set VITE_API_URL to the deployed API origin (see .env.production).
+ *  - Development: leave unset — the Vite dev server proxies /api and /socket.io
+ *    to the local backend, so same-origin works and no URL is hardcoded.
+ */
+export const API_URL: string | undefined = import.meta.env.VITE_API_URL || undefined;
 
-const socket = io(URL, {
-  autoConnect: true,          // connect immediately on load
-  transports: ["polling", "websocket"], // start with polling (works on all networks), upgrade to WS
+const socket = io(API_URL, {
+  autoConnect: true,
+  // Polling first (works everywhere), then upgrade to WebSocket.
+  transports: ["polling", "websocket"],
   reconnection: true,
   reconnectionAttempts: Infinity,
-  reconnectionDelay: 500,
-  reconnectionDelayMax: 3000,
+  reconnectionDelay: 600,
+  reconnectionDelayMax: 4000,
   timeout: 20000,
-  upgrade: true,              // upgrade from polling to websocket when possible
 });
 
-// Keep Railway server alive — ping every 20 seconds
-setInterval(() => {
-  fetch(`${URL}/api/health`).catch(() => {});
-}, 20000);
+// Reconnect promptly when a backgrounded tab becomes visible again (mobile).
+if (typeof document !== "undefined") {
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible" && !socket.connected) {
+      socket.connect();
+    }
+  });
+}
 
-// Reconnect when tab becomes visible again (mobile backgrounding)
-document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "visible" && !socket.connected) {
-    socket.connect();
-  }
-});
+/** Absolute URL for a REST endpoint served by the backend. */
+export function apiUrl(path: string): string {
+  return API_URL ? `${API_URL}${path}` : path;
+}
 
 export default socket;

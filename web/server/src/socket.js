@@ -4,14 +4,9 @@ import { Filter } from "bad-words";
 import { generateIcebreaker, summarizeConversation } from "./ai.js";
 import {
   REPORT_BAN_THRESHOLD,
-  MAX_MESSAGE_SIZE,
   MAX_IMAGE_BASE64,
-  MAX_CAPTION_LENGTH,
   MESSAGE_RATE_LIMIT,
-  MESSAGE_RATE_WINDOW,
-  isValidUserId,
-  isValidDataUrl,
-  sanitizeString
+  MESSAGE_RATE_WINDOW
 } from "./config.js";
 import {
   validateFindPayload,

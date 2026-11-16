@@ -1,82 +1,17 @@
-import { useEffect, useState, useRef } from "react";import socket from "../socket";
+import { useEffect, useState, useRef } from "react";
+import { ArrowRight, Shield, Zap, Globe } from "lucide-react";
+import socket, { apiUrl } from "../socket";
+import { Button, StatusDot, Wordmark } from "./ui";
 
 interface Props {
   onStart: () => void;
 }
 
-function lcg(s: number) {
-  return (s * 9301 + 49297) % 233280;
-}
-function frac(s: number) {
-  return s / 233280;
-}
-
-function DeepSpaceBg() {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-
-    let animId: number;
-    const colors = ["#ffffff","#f9a8d4","#e879f9","#c084fc","#f472b6","#d8b4fe","#fb7185"];
-
-    // Build star data once
-    const stars = Array.from({ length: 280 }, (_, i) => {
-      let s = lcg(i + 7);
-      const x = frac(s) * 1; s = lcg(s);
-      const y = frac(s) * 1; s = lcg(s);
-      const size = frac(s) * 1.8 + 0.3; s = lcg(s);
-      const baseOpacity = frac(s) * 0.6 + 0.15; s = lcg(s);
-      const speed = frac(s) * 0.008 + 0.003;
-      const phase = frac(lcg(s)) * Math.PI * 2;
-      return { x, y, size, baseOpacity, speed, phase, color: colors[i % colors.length] };
-    });
-
-    const resize = () => {
-      canvas.width = canvas.offsetWidth;
-      canvas.height = canvas.offsetHeight;
-    };
-    resize();
-    window.addEventListener("resize", resize);
-
-    let t = 0;
-    const draw = () => {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      t += 0.016;
-      for (const star of stars) {
-        const opacity = star.baseOpacity * (0.5 + 0.5 * Math.sin(t * star.speed * 60 + star.phase));
-        ctx.beginPath();
-        ctx.arc(star.x * canvas.width, star.y * canvas.height, star.size, 0, Math.PI * 2);
-        ctx.fillStyle = star.color;
-        ctx.globalAlpha = opacity;
-        ctx.fill();
-      }
-      ctx.globalAlpha = 1;
-      animId = requestAnimationFrame(draw);
-    };
-    draw();
-
-    return () => {
-      cancelAnimationFrame(animId);
-      window.removeEventListener("resize", resize);
-    };
-  }, []);
-
-  return (
-    <div className="absolute inset-0 overflow-hidden pointer-events-none">
-      <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" />
-      <div className="absolute" style={{ top: "-5%", left: "-5%", width: 700, height: 700, background: "radial-gradient(circle,rgba(130,40,200,0.4) 0%,rgba(90,20,160,0.15) 30%,rgba(60,10,120,0.05) 60%,transparent 100%)", filter: "blur(60px)", animation: "auroraShift 24s ease-in-out infinite" }} />
-      <div className="absolute" style={{ top: "10%", right: "-8%", width: 600, height: 600, background: "radial-gradient(circle,rgba(200,30,140,0.35) 0%,rgba(160,20,120,0.12) 35%,rgba(100,10,80,0.03) 65%,transparent 100%)", filter: "blur(65px)", animation: "auroraShift2 20s ease-in-out infinite" }} />
-      <div className="absolute" style={{ bottom: "0%", left: "5%", width: 500, height: 500, background: "radial-gradient(circle,rgba(110,30,190,0.3) 0%,rgba(80,10,150,0.1) 40%,rgba(40,5,100,0.02) 70%,transparent 100%)", filter: "blur(55px)", animation: "auroraShift 30s ease-in-out 8s infinite" }} />
-      <div className="absolute" style={{ bottom: "5%", right: "5%", width: 450, height: 450, background: "radial-gradient(circle,rgba(220,50,150,0.25) 0%,rgba(180,30,120,0.08) 45%,rgba(120,15,80,0.02) 75%,transparent 100%)", filter: "blur(55px)", animation: "auroraShift2 26s ease-in-out 4s infinite" }} />
-      <div className="absolute" style={{ bottom: "8%", left: "50%", transform: "translateX(-50%)", width: "80%", height: 180, background: "radial-gradient(ellipse,rgba(180,50,255,0.4) 0%,rgba(240,60,180,0.2) 35%,rgba(200,40,140,0.05) 60%,transparent 100%)", filter: "blur(40px)" }} />
-      <div className="absolute" style={{ top: "20%", left: "50%", transform: "translateX(-50%)", width: 500, height: 500, background: "radial-gradient(circle,rgba(140,60,220,0.15) 0%,rgba(100,30,180,0.05) 40%,rgba(60,15,120,0.01) 70%,transparent 100%)", filter: "blur(45px)" }} />
-    </div>
-  );
-}
+const TRUST = [
+  { icon: Shield, label: "Anonymous" },
+  { icon: Zap, label: "No signup" },
+  { icon: Globe, label: "Global" },
+];
 
 export default function Landing({ onStart }: Props) {
   const [stats, setStats] = useState({ total_matches: 0, active_chats: 0, online: 0 });
@@ -86,47 +21,48 @@ export default function Landing({ onStart }: Props) {
   const [displayOnline, setDisplayOnline] = useState(0);
 
   useEffect(() => {
-    setTimeout(() => setVisible(true), 80);
-    const base = import.meta.env.VITE_API_URL || "https://novachat-production-57d2.up.railway.app";
+    const t = setTimeout(() => setVisible(true), 60);
+
     const load = () =>
-      fetch(`${base}/api/stats`)
+      fetch(apiUrl("/api/stats"))
         .then((r) => r.json())
         .then(setStats)
         .catch(() => {});
     load();
     const iv = setInterval(load, 15000);
-    // Socket is always connected (autoConnect:true) — just listen for count updates
-    socket.on("online_count", ({ count }: { count: number }) => {
+
+    const onCount = ({ count }: { count: number }) =>
       setStats((s) => ({ ...s, online: count }));
-    });
+    socket.on("online_count", onCount);
+
     return () => {
+      clearTimeout(t);
       clearInterval(iv);
-      socket.off("online_count");
+      socket.off("online_count", onCount);
     };
   }, []);
 
+  // Smoothly count up to the live online figure.
   useEffect(() => {
     const target = stats.online;
     if (target === countRef.current) return;
     const diff = target - countRef.current;
-    const steps = 24;
+    const steps = 20;
     const step = diff / steps;
     let i = 0;
     const iv = setInterval(() => {
       i++;
-      countRef.current = Math.round(countRef.current + step);
-      if (i >= steps) {
-        countRef.current = target;
-        clearInterval(iv);
-      }
+      countRef.current = i >= steps ? target : Math.round(countRef.current + step);
       setDisplayOnline(countRef.current);
-    }, 35);
+      if (i >= steps) clearInterval(iv);
+    }, 40);
     return () => clearInterval(iv);
   }, [stats.online]);
 
   const handleStart = () => {
+    if (leaving) return;
     setLeaving(true);
-    setTimeout(onStart, 380);
+    setTimeout(onStart, 320);
   };
 
   useEffect(() => {
@@ -135,135 +71,76 @@ export default function Landing({ onStart }: Props) {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [leaving]);
 
   return (
-    <div
-      className="h-full w-full flex items-center justify-center relative overflow-hidden"
-      style={{ background: "radial-gradient(ellipse at 50% 30%, #1a0530 0%, #0d0118 45%, #060010 100%)" }}
-    >
-      <DeepSpaceBg />
+    <div className="relative h-full w-full flex items-center justify-center overflow-hidden bg-bg">
+      {/* Aurora glass backdrop */}
+      <div className="absolute inset-0 aurora pointer-events-none" />
+      <div className="absolute inset-0 grid-fade pointer-events-none" />
+      <div className="absolute inset-0 noise pointer-events-none" />
 
       <div
-        className={`relative z-10 flex flex-col items-center text-center px-5 max-w-xl w-full transition-all duration-500 ease-in-out ${
+        className={`relative z-10 flex w-full max-w-lg flex-col items-center px-6 text-center transition-all duration-500 ${
           visible && !leaving
             ? "opacity-100 translate-y-0"
             : leaving
-            ? "opacity-0 -translate-y-8 scale-95"
-            : "opacity-0 translate-y-10"
+              ? "opacity-0 -translate-y-6 scale-[0.98]"
+              : "opacity-0 translate-y-4"
         }`}
       >
-        <div
-          className="flex items-center gap-2 px-4 py-1.5 rounded-full mb-3"
-          style={{
-            background: "rgba(255,255,255,0.08)",
-            border: "1px solid rgba(255,255,255,0.15)",
-            backdropFilter: "blur(16px)",
-            boxShadow: "0 0 24px rgba(180,80,255,0.2), inset 0 1px 0 rgba(255,255,255,0.1)",
-          }}
-        >
-          <span
-            className="w-2 h-2 rounded-full bg-green-400 animate-pulse shrink-0"
-            style={{ boxShadow: "0 0 8px rgba(74,222,128,0.8)" }}
-          />
-          <span className="text-white font-semibold text-xs sm:text-sm">
-            {displayOnline.toLocaleString()} people online now
+        {/* Live presence pill */}
+        <div className="mb-8 flex items-center gap-2 rounded-full glass px-3.5 py-1.5">
+          <StatusDot />
+          <span className="text-[13px] font-medium text-fg-muted tabular-nums">
+            <span className="text-fg">{displayOnline.toLocaleString()}</span> online now
           </span>
         </div>
 
-        <div className="relative mb-2 select-none">
-          <div
-            className="absolute rounded-full"
-            style={{
-              inset: "-30px",
-              background: "radial-gradient(circle,rgba(180,60,255,0.5) 0%,rgba(240,60,180,0.2) 45%,transparent 70%)",
-              filter: "blur(30px)",
-              animation: "glowPulse 3s ease-in-out infinite",
-            }}
-          />
-          <div
-            className="relative z-10 animate-float"
-            style={{
-              fontSize: "clamp(64px, 18vw, 110px)",
-              lineHeight: 1,
-              filter: "drop-shadow(0 0 40px rgba(200,80,255,0.9)) drop-shadow(0 0 80px rgba(160,40,220,0.6)) drop-shadow(0 24px 48px rgba(0,0,0,0.7))",
-            }}
-          >
-            👻
-          </div>
-        </div>
+        <Wordmark size={44} className="mb-7" />
 
-        <h1
-          className="font-black tracking-tight mb-2 leading-none"
-          style={{
-            fontSize: "clamp(2.8rem,10vw,6.5rem)",
-            background: "linear-gradient(135deg,#a855f7 0%,#c084fc 25%,#e879f9 55%,#f472b6 80%,#fb7185 100%)",
-            WebkitBackgroundClip: "text",
-            WebkitTextFillColor: "transparent",
-            backgroundClip: "text",
-            filter: "drop-shadow(0 0 40px rgba(192,132,252,0.5))",
-            letterSpacing: "-0.02em",
-          }}
-        >
-          NovaChat
+        <h1 className="text-[34px] font-semibold leading-[1.08] tracking-[-0.03em] sm:text-[44px]">
+          <span className="text-gradient">Talk to someone</span>
+          <br />
+          <span className="text-fg-subtle">in seconds.</span>
         </h1>
 
-        <p
-          className="text-sm leading-relaxed mb-6"
-          style={{ color: "rgba(255,255,255,0.45)", maxWidth: 300 }}
-        >
-          Anonymous chat with strangers.
-          <br />
-          No account. No name.
+        <p className="mt-4 max-w-sm text-[15px] leading-relaxed text-fg-muted">
+          Anonymous one-on-one chat with strangers worldwide. No account, no name, no history.
         </p>
 
-        <div className="relative w-full max-w-sm mb-5">
-          <div
-            className="absolute inset-0 rounded-full"
-            style={{
-              background: "linear-gradient(135deg,#7c3aed,#db2777)",
-              filter: "blur(20px)",
-              opacity: 0.75,
-              transform: "scaleY(0.55) translateY(14px)",
-            }}
-          />
-          <button
-            onClick={handleStart}
-            className="relative w-full py-4 rounded-full font-black text-lg text-white overflow-hidden group transition-all hover:scale-[1.03] active:scale-[0.98]"
-            style={{
-              background: "linear-gradient(135deg,#6d28d9 0%,#9333ea 40%,#be185d 100%)",
-              boxShadow: "0 0 0 1.5px rgba(168,85,247,0.6), 0 8px 40px rgba(124,58,237,0.6)",
-            }}
-          >
-            <span className="relative z-10 flex items-center justify-center gap-2">
-              ✦ Start Chatting →
-            </span>
-            <span
-              className="absolute inset-0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700"
-              style={{ background: "linear-gradient(90deg,transparent,rgba(255,255,255,0.2),transparent)" }}
+        <div className="mt-9 w-full max-w-xs">
+          <Button size="lg" className="w-full group" onClick={handleStart}>
+            Start chatting
+            <ArrowRight
+              size={17}
+              className="transition-transform duration-200 group-hover:translate-x-0.5"
             />
-          </button>
+          </Button>
         </div>
 
-        <div className="flex items-center gap-4 text-xs font-medium flex-wrap justify-center">
-          <span style={{ color: "rgba(255,255,255,0.35)" }}>🔒 Anonymous</span>
-          <span style={{ color: "rgba(255,255,255,0.15)" }}>·</span>
-          <span style={{ color: "rgba(255,255,255,0.35)" }}>⚡ No signup</span>
-          <span style={{ color: "rgba(255,255,255,0.15)" }}>·</span>
-          <span style={{ color: "rgba(255,255,255,0.35)" }}>🌍 Global</span>
+        {/* Trust row */}
+        <div className="mt-8 flex items-center gap-5 rounded-full glass px-5 py-2">
+          {TRUST.map(({ icon: Icon, label }) => (
+            <div key={label} className="flex items-center gap-1.5 text-fg-muted">
+              <Icon size={14} strokeWidth={2} className="text-accent-hover" />
+              <span className="text-xs font-medium">{label}</span>
+            </div>
+          ))}
         </div>
 
-        <div className="mt-4 hidden sm:flex items-center gap-2" style={{ opacity: 0.3 }}>
-          <div style={{ height: 1, width: 28, background: "rgba(255,255,255,0.2)" }} />
-          <span style={{ fontSize: 10, color: "rgba(255,255,255,0.6)", letterSpacing: "0.12em", fontWeight: 500 }}>
-            or press enter
-          </span>
-          <div style={{ height: 1, width: 28, background: "rgba(255,255,255,0.2)" }} />
+        <div className="mt-10 hidden items-center gap-3 sm:flex">
+          <span className="h-px w-6 bg-line-strong" />
+          <kbd className="rounded border border-white/[0.09] bg-white/[0.05] px-1.5 py-0.5 text-[10px] font-medium tracking-wide text-fg-subtle">
+            Enter
+          </kbd>
+          <span className="h-px w-6 bg-line-strong" />
         </div>
       </div>
 
-      <p className="absolute bottom-3 text-xs z-10" style={{ color: "rgba(255,255,255,0.12)" }}>
-        By using NovaChat you agree to be respectful. Abuse = ban.
+      <p className="absolute bottom-5 z-10 px-6 text-center text-[11px] text-fg-subtle/70">
+        Be respectful. Abuse results in a ban.
       </p>
     </div>
   );

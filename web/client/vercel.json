@@ -4,6 +4,6 @@
   "framework": "vite",
   "rewrites": [
     { "source": "/sitemap.xml", "destination": "/api/sitemap.xml" },
-    { "source": "/((?!api/).*)", "destination": "/index.html" }
+    { "source": "/((?!api/|robots.txt|sitemap.xml|favicon.svg|manifest.json|assets/).*)", "destination": "/index.html" }
   ]
 }

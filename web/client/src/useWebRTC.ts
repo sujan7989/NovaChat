@@ -1,7 +1,5 @@
 import { useRef, useState, useCallback } from "react";
-import socket from "./socket";
-
-const SOCKET_URL = import.meta.env.VITE_API_URL || "https://novachat-production-57d2.up.railway.app";
+import socket, { apiUrl } from "./socket";
 
 async function getIceServers(): Promise<RTCIceServer[]> {
   const openRelay: RTCIceServer[] = [
@@ -13,11 +11,12 @@ async function getIceServers(): Promise<RTCIceServer[]> {
     { urls: "turn:openrelay.metered.ca:80?transport=tcp", username: "openrelayproject", credential: "openrelayproject" },
   ];
   try {
-    const res = await fetch(`${SOCKET_URL}/api/ice-servers`);
+    const res = await fetch(apiUrl("/api/ice-servers"));
     if (!res.ok) throw new Error();
     const data = await res.json();
     return data.iceServers?.length ? data.iceServers : openRelay;
   } catch {
+    /* ICE endpoint unavailable — fall back to public relays. */
     return openRelay;
   }
 }
@@ -34,7 +33,11 @@ async function getStream(): Promise<MediaStream> {
     { video: true, audio: true },
   ];
   for (const c of attempts) {
-    try { return await navigator.mediaDevices.getUserMedia(c); } catch {}
+    try {
+      return await navigator.mediaDevices.getUserMedia(c);
+    } catch {
+      /* Try the next constraint set. */
+    }
   }
   throw new Error("Camera/microphone access denied. Please allow permissions.");
 }
@@ -138,7 +141,11 @@ export function useWebRTC(userId: string) {
   const flushCandidates = useCallback(async () => {
     if (!pcRef.current?.remoteDescription) return;
     for (const c of pendingCandidates.current) {
-      try { await pcRef.current.addIceCandidate(new RTCIceCandidate(c)); } catch {}
+      try {
+        await pcRef.current.addIceCandidate(new RTCIceCandidate(c));
+      } catch {
+        /* Candidate may already be known — ignore. */
+      }
     }
     pendingCandidates.current = [];
   }, []);
@@ -186,7 +193,9 @@ export function useWebRTC(userId: string) {
       if (pcRef.current.signalingState !== "have-local-offer") return;
       await pcRef.current.setRemoteDescription(new RTCSessionDescription(answer));
       await flushCandidates();
-    } catch {}
+    } catch {
+      /* Answer could not be applied — an ICE restart will recover the call. */
+    }
   }, [flushCandidates]);
 
   const handleIce = useCallback(async (candidate: RTCIceCandidateInit) => {
@@ -197,7 +206,9 @@ export function useWebRTC(userId: string) {
       } else {
         pendingCandidates.current.push(candidate);
       }
-    } catch {}
+    } catch {
+      /* Invalid candidate — ignore. */
+    }
   }, []);
 
   const endCall = useCallback(() => {

@@ -11,6 +11,8 @@ export interface Message {
   caption?: string;
   timestamp: number;
   delivered?: boolean;
+  /** System notice rendered as a centered pill (match found, stranger left, …). */
+  system?: boolean;
 }
 
 export interface UserProfile {

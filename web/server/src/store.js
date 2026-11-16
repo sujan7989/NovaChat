@@ -47,3 +47,12 @@ export async function initStore() {
 export function getStore() {
   return store;
 }
+
+/** Release store resources (Redis connection) during graceful shutdown. */
+export async function closeStore() {
+  try {
+    if (store && typeof store.close === "function") await store.close();
+  } catch {
+    /* ignore close errors during shutdown */
+  }
+}
