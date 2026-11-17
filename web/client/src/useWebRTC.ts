@@ -9,31 +9,24 @@ const reportVideoDebug = (hypothesisId: string, msg: string, data: Record<string
 // #endregion
 
 async function getIceServers(): Promise<RTCIceServer[]> {
-  // Client-side fallback — multiple providers, all TCP-verified reachable.
-  const fallback: RTCIceServer[] = [
-    // STUN
+  // Metered static credentials — always used as the reliable fallback.
+  // These are real Metered TURN credentials (global.relay.metered.ca).
+  const metered: RTCIceServer[] = [
+    { urls: "stun:stun.relay.metered.ca:80" },
     { urls: "stun:stun.l.google.com:19302" },
     { urls: "stun:stun1.l.google.com:19302" },
-    { urls: "stun:stun2.l.google.com:19302" },
-    { urls: "stun:stun3.l.google.com:19302" },
-    { urls: "stun:stun4.l.google.com:19302" },
-    { urls: "stun:stun.cloudflare.com:3478" },
-    // TURN — freeturn.net (verified TCP-open)
-    { urls: "turn:freeturn.net:3478",               username: "free", credential: "free" },
-    { urls: "turn:freeturn.net:3478?transport=tcp",  username: "free", credential: "free" },
-    { urls: "turns:freeturn.net:5349",              username: "free", credential: "free" },
-    // TURN — anyfirewall (verified TCP-open, TLS 443)
-    { urls: "turn:turn.anyfirewall.com:443?transport=tcp", username: "webrtc", credential: "webrtc" },
+    { urls: "turn:global.relay.metered.ca:80",                  username: "93c7303126b0252c421f26df", credential: "o0dyuZ/1paS5QxsR" },
+    { urls: "turn:global.relay.metered.ca:80?transport=tcp",    username: "93c7303126b0252c421f26df", credential: "o0dyuZ/1paS5QxsR" },
+    { urls: "turn:global.relay.metered.ca:443",                 username: "93c7303126b0252c421f26df", credential: "o0dyuZ/1paS5QxsR" },
+    { urls: "turns:global.relay.metered.ca:443?transport=tcp",  username: "93c7303126b0252c421f26df", credential: "o0dyuZ/1paS5QxsR" },
   ];
   try {
     const res = await fetch(apiUrl("/api/ice-servers"));
     if (!res.ok) throw new Error();
     const data = await res.json();
-    reportVideoDebug("B", "ICE configuration loaded", { serverCount: data.iceServers?.length ?? 0 });
-    return data.iceServers?.length ? data.iceServers : fallback;
+    return data.iceServers?.length ? data.iceServers : metered;
   } catch {
-    reportVideoDebug("B", "ICE configuration fallback selected");
-    return fallback;
+    return metered;
   }
 }
 

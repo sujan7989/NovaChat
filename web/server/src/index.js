@@ -67,24 +67,16 @@ app.get("/api/config", (req, res) => {
 const ICE_CACHE_TTL_MS = 55 * 60 * 1000;
 let iceCache = { at: 0, servers: null };
 
-// Verified-working free public STUN+TURN.
-// All openrelay / viagenie entries are removed — both are dead/overloaded.
-// freeturn.net is a live open COTURN instance (no signup, no card).
+// Real Metered TURN credentials — used when no managed API key is set.
+// These are static credentials from the novachat-2026 Metered workspace.
 const FREE_ICE_FALLBACK = [
-  // ── STUN ────────────────────────────────────────────────────────────────
+  { urls: "stun:stun.relay.metered.ca:80" },
   { urls: "stun:stun.l.google.com:19302" },
   { urls: "stun:stun1.l.google.com:19302" },
-  { urls: "stun:stun2.l.google.com:19302" },
-  { urls: "stun:stun3.l.google.com:19302" },
-  { urls: "stun:stun4.l.google.com:19302" },
-  { urls: "stun:stun.cloudflare.com:3478" },
-  { urls: "stun:stun.relay.metered.ca:80" },
-  // ── TURN — freeturn.net (live COTURN, no signup) ─────────────────────
-  { urls: "turn:freeturn.net:3478",           username: "free",  credential: "free" },
-  { urls: "turn:freeturn.net:3478?transport=tcp", username: "free", credential: "free" },
-  { urls: "turns:freeturn.net:5349",          username: "free",  credential: "free" },
-  // ── TURN — turn.anyfirewall.com (another open COTURN) ────────────────
-  { urls: "turn:turn.anyfirewall.com:443?transport=tcp", username: "webrtc", credential: "webrtc" },
+  { urls: "turn:global.relay.metered.ca:80",                 username: "93c7303126b0252c421f26df", credential: "o0dyuZ/1paS5QxsR" },
+  { urls: "turn:global.relay.metered.ca:80?transport=tcp",   username: "93c7303126b0252c421f26df", credential: "o0dyuZ/1paS5QxsR" },
+  { urls: "turn:global.relay.metered.ca:443",                username: "93c7303126b0252c421f26df", credential: "o0dyuZ/1paS5QxsR" },
+  { urls: "turns:global.relay.metered.ca:443?transport=tcp", username: "93c7303126b0252c421f26df", credential: "o0dyuZ/1paS5QxsR" },
 ];
 
 async function fetchMeteredIceServers() {
