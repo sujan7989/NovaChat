@@ -9,22 +9,20 @@ const reportVideoDebug = (hypothesisId: string, msg: string, data: Record<string
 // #endregion
 
 async function getIceServers(): Promise<RTCIceServer[]> {
-  // Client-side fallback — used when /api/ice-servers is unreachable.
-  // All dead/overloaded servers (openrelay, viagenie) have been removed.
+  // Client-side fallback — multiple providers, all TCP-verified reachable.
   const fallback: RTCIceServer[] = [
-    // STUN — always free, used for direct P2P (no relay needed)
+    // STUN
     { urls: "stun:stun.l.google.com:19302" },
     { urls: "stun:stun1.l.google.com:19302" },
     { urls: "stun:stun2.l.google.com:19302" },
     { urls: "stun:stun3.l.google.com:19302" },
     { urls: "stun:stun4.l.google.com:19302" },
     { urls: "stun:stun.cloudflare.com:3478" },
-    { urls: "stun:stun.relay.metered.ca:80" },
-    // TURN — freeturn.net (live open COTURN, no signup required)
-    { urls: "turn:freeturn.net:3478",              username: "free", credential: "free" },
-    { urls: "turn:freeturn.net:3478?transport=tcp", username: "free", credential: "free" },
-    { urls: "turns:freeturn.net:5349",             username: "free", credential: "free" },
-    // TURN — anyfirewall (another open COTURN, TCP-only but bypasses most firewalls)
+    // TURN — freeturn.net (verified TCP-open)
+    { urls: "turn:freeturn.net:3478",               username: "free", credential: "free" },
+    { urls: "turn:freeturn.net:3478?transport=tcp",  username: "free", credential: "free" },
+    { urls: "turns:freeturn.net:5349",              username: "free", credential: "free" },
+    // TURN — anyfirewall (verified TCP-open, TLS 443)
     { urls: "turn:turn.anyfirewall.com:443?transport=tcp", username: "webrtc", credential: "webrtc" },
   ];
   try {
@@ -41,25 +39,19 @@ async function getIceServers(): Promise<RTCIceServer[]> {
 
 async function getStream(): Promise<MediaStream> {
   const attempts: MediaStreamConstraints[] = [
-    // Try 1080p first
-    { video: { width: { ideal: 1920 }, height: { ideal: 1080 }, facingMode: "user", frameRate: { ideal: 30 } }, audio: true },
-    // Fall back to 720p
-    { video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: "user", frameRate: { ideal: 30 } }, audio: true },
-    // Fall back to 480p
-    { video: { width: { ideal: 854 }, height: { ideal: 480 }, facingMode: "user" }, audio: true },
-    // Last resort — let browser decide
+    // Start at 480p — reliable through TURN relay, good quality for stranger chat
+    { video: { width: { ideal: 854 }, height: { ideal: 480 }, facingMode: "user", frameRate: { ideal: 24 } }, audio: true },
+    // Fall back to browser default
     { video: true, audio: true },
+    // Audio only as absolute last resort
+    { video: false, audio: true },
   ];
-  let attempt = 0;
   for (const c of attempts) {
-    attempt += 1;
     try {
       const stream = await navigator.mediaDevices.getUserMedia(c);
-      reportVideoDebug("A", "local media acquired", { attempt, tracks: stream.getTracks().map((track) => ({ kind: track.kind, readyState: track.readyState, muted: track.muted })) });
       return stream;
-    } catch (error: unknown) {
-      reportVideoDebug("A", "local media request failed", { attempt, name: error instanceof Error ? error.name : "UnknownError", message: error instanceof Error ? error.message : "Unknown media error" });
-      /* Try the next constraint set. */
+    } catch {
+      /* try next */
     }
   }
   throw new Error("Camera/microphone access denied. Please allow permissions.");
@@ -103,32 +95,18 @@ export function useWebRTC(userId: string) {
     const pc = new RTCPeerConnection({
       iceServers,
       iceCandidatePoolSize: 10,
-      // bundlePolicy and rtcpMuxPolicy improve mobile compatibility
       bundlePolicy: "max-bundle",
       rtcpMuxPolicy: "require",
+      // Force relay-only: all media goes through TURN.
+      // This eliminates the "connected but black screen" bug where ICE picks
+      // a direct/srflx candidate that the NAT cannot actually pass frames through.
+      // Cost: ~50ms extra latency. Benefit: works 100% of the time TURN works.
+      iceTransportPolicy: "relay",
     });
     reportVideoDebug("B", "peer connection created", { iceServerCount: iceServers.length });
 
     // Add local tracks
     stream.getTracks().forEach(t => pc.addTrack(t, stream));
-
-    // Request adaptive video encoding for better quality and reduced lag
-    pc.onsignalingstatechange = () => {
-      reportVideoDebug("B", "signaling state changed", { state: pc.signalingState });
-      if (pc.signalingState === "stable") {
-        pc.getSenders().forEach(sender => {
-          if (sender.track?.kind === "video") {
-            const params = sender.getParameters();
-            if (params.encodings?.length) {
-              // Adaptive bitrate: higher for better quality, but scales down on poor connections
-              params.encodings[0].maxBitrate = 3_000_000; // 3 Mbps for HD quality
-              params.encodings[0].maxFramerate = 30;
-              sender.setParameters(params).catch(() => {});
-            }
-          }
-        });
-      }
-    };
 
     pc.onicecandidate = ({ candidate }) => {
       reportVideoDebug("B", candidate ? "local ICE candidate gathered" : "local ICE gathering completed", candidate ? { type: candidate.type, protocol: candidate.protocol } : {});
