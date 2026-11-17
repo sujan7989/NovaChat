@@ -157,6 +157,11 @@ function MatchFlash({ onDone }: { onDone: () => void }) {
 }
 
 export default function Chat({ profile, onStop }: Props) {
+  // Stable ref for profile — prevents the socket useEffect from re-running
+  // every render (profile is a new object each time from App.tsx state).
+  const profileRef = useRef(profile);
+  useEffect(() => { profileRef.current = profile; }, [profile]);
+
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [status, setStatus] = useState<"searching" | "chatting" | "stopped">("searching");
@@ -218,11 +223,10 @@ export default function Chat({ profile, onStop }: Props) {
     const handleReconnect = () => {
       setReconnecting(false);
       showToast("Reconnected", "success");
-      // Re-queue for matching after reconnect.
-      // Use functional form to read latest status without a stale closure.
       setStatus(currentStatus => {
         if (currentStatus === "searching" || currentStatus === "chatting") {
-          socket.emit("find", { ...profile, languages: profile.languages, vibes: profile.vibes });
+          const p = profileRef.current;
+          socket.emit("find", { ...p, languages: p.languages, vibes: p.vibes });
         }
         return currentStatus;
       });
@@ -261,7 +265,7 @@ export default function Chat({ profile, onStop }: Props) {
       setShowVideo(false);
       addMsg({ from: "stranger", type: "text", text: "Stranger left the chat.", system: true });
       setTimeout(() => setShowRating(true), 1500);
-      socket.emit("submit_for_summary", { userId: profile.userId, messages: messagesRef.current });
+      socket.emit("submit_for_summary", { userId: profileRef.current.userId, messages: messagesRef.current });
     });
     socket.on("chat_summary", ({ summary }: { summary: string }) => setChatSummary(summary));
     socket.on("stopped", () => { setStatus("stopped"); cleanup(); setShowVideo(false); });
@@ -286,7 +290,8 @@ export default function Chat({ profile, onStop }: Props) {
     socket.io.on("reconnect", handleReconnect);
 
     const emitFind = () => {
-      socket.emit("find", { ...profile, languages: profile.languages, vibes: profile.vibes });
+      const p = profileRef.current;
+      socket.emit("find", { ...p, languages: p.languages, vibes: p.vibes });
     };
     if (socket.connected) emitFind();
     else socket.once("connect", emitFind);
@@ -301,7 +306,11 @@ export default function Chat({ profile, onStop }: Props) {
       socket.io.off("reconnect_attempt", handleReconnectAttempt);
       socket.io.off("reconnect", handleReconnect);
     };
-  }, [addMsg, cleanup, handleAnswer, handleIce, handleOffer, profile, showToast]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [addMsg, cleanup, handleAnswer, handleIce, handleOffer, showToast]);
+  // NOTE: profile intentionally excluded — profileRef keeps it current without
+  // re-running the effect. Re-running would remove all listeners and re-emit
+  // "find", which causes both users to keep resetting and never matching.
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, strangerTyping]);
 

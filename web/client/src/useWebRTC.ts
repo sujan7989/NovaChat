@@ -74,9 +74,9 @@ export function useWebRTC(userId: string) {
       iceCandidatePoolSize: 10,
       bundlePolicy: "max-bundle",
       rtcpMuxPolicy: "require",
-      // relay-only: forces ALL media through TURN, eliminating the
-      // "ICE connected but black screen" bug caused by broken direct paths.
-      iceTransportPolicy: "relay",
+      // Do NOT force relay-only — let ICE use all candidate types.
+      // Direct (host/srflx) candidates work on same network and are faster.
+      // TURN relay (Metered) handles the cases where direct fails.
     });
 
     stream.getTracks().forEach(t => pc.addTrack(t, stream));
