@@ -280,7 +280,10 @@ export default function Chat({ profile, onStop }: Props) {
     socket.io.on("reconnect_attempt", handleReconnectAttempt);
     socket.io.on("reconnect", handleReconnect);
 
-    const emitFind = () => socket.emit("find", { ...profile, languages: profile.languages, vibes: profile.vibes });
+    const emitFind = () => {
+      console.log("[DEBUG] Emitting find request:", profile);
+      socket.emit("find", { ...profile, languages: profile.languages, vibes: profile.vibes });
+    };
     if (socket.connected) emitFind();
     else socket.once("connect", emitFind);
 

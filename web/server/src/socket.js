@@ -64,9 +64,11 @@ export function initSocket(io) {
     broadcastOnlineCount();
 
     socket.on("find", async (payload) => {
+      console.log("[DEBUG] Received find request from", socket.id, ":", payload);
       const validation = validateFindPayload(payload);
       if (validation.error) {
         logger.warn(`Invalid find payload from ${socket.id}: ${validation.error}`);
+        console.log("[DEBUG] Validation error:", validation.error, validation.details);
         socket.emit("error_msg", { msg: validation.error, details: validation.details });
         return;
       }
@@ -83,6 +85,7 @@ export function initSocket(io) {
       socketToUser.set(socket.id, userId);
       userToSocket.set(userId, socket.id);
       logger.info(`Find request: ${userId} (gender=${gender}, pref=${pref})`);
+      console.log("[DEBUG] Queued user:", userId, gender, pref);
 
       try {
         // Clear any stale session from a previous connection before finding a new match
@@ -93,8 +96,10 @@ export function initSocket(io) {
         }
 
         const match = await findOrQueue(userId, gender, pref, interests, languages, vibes);
+        console.log("[DEBUG] findOrQueue result:", match);
         if (match) {
           const partnerSocket = userToSocket.get(match.partnerId);
+          console.log("[DEBUG] Partner socket:", partnerSocket);
           if (partnerSocket) {
             // Generate AI icebreaker in background — don't block matching
             generateIcebreaker(match.shared, match.partnerVibes).then(icebreaker => {
@@ -114,6 +119,7 @@ export function initSocket(io) {
           }
         } else {
           socket.emit("queued");
+          console.log("[DEBUG] User queued:", userId);
         }
       } catch (err) {
         logger.error(`Error in find handler: ${err.message}`);

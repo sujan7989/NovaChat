@@ -60,6 +60,8 @@ export async function dequeueMatch(userId, myGender, myPref, myInterests, myLang
   const myInts   = myInterests || [];
   const myVbs    = myVibes     || [];
 
+  console.log("[DEBUG] dequeueMatch called:", { userId, myGender, myPref, queueLength: queue.length, queue: queue.map(q => ({ userId: q.userId, gender: q.gender, pref: q.pref })) });
+
   // Remove stale entries (older than 5 minutes)
   const now = Date.now();
   for (let i = queue.length - 1; i >= 0; i--) {
@@ -74,6 +76,8 @@ export async function dequeueMatch(userId, myGender, myPref, myInterests, myLang
     const c = queue[i];
     if (c.userId === me) continue;
 
+    console.log("[DEBUG] Checking candidate:", { candidate: c.userId, candidateGender: c.gender, candidatePref: c.pref, myGender, myPref });
+
     // Gender pref matching logic:
     // - If I want "any", I match with anyone
     // - If I want specific (male/female), they must match my preference
@@ -83,10 +87,16 @@ export async function dequeueMatch(userId, myGender, myPref, myInterests, myLang
     const theirPrefSpecific = c.pref    !== "any";
 
     // Check if I'm compatible with them based on my preference
-    if (myPrefSpecific && myPref !== c.gender) continue;  // I want specific, they don't match
+    if (myPrefSpecific && myPref !== c.gender) {
+      console.log("[DEBUG] Skipped: my pref specific and doesn't match candidate gender");
+      continue;  // I want specific, they don't match
+    }
 
     // Check if they're compatible with me based on their preference
-    if (theirPrefSpecific && c.pref !== myGender) continue;  // They want specific, I don't match
+    if (theirPrefSpecific && c.pref !== myGender) {
+      console.log("[DEBUG] Skipped: their pref specific and I don't match their preference");
+      continue;  // They want specific, I don't match
+    }
 
     let score = 1; // base: gender pref compatible
 
@@ -103,6 +113,8 @@ export async function dequeueMatch(userId, myGender, myPref, myInterests, myLang
     const vibeOverlap = hasOverlap(myVbs, c.vibes);
     if (vibeOverlap) score += 4;
 
+    console.log("[DEBUG] Candidate score:", { candidate: c.userId, score });
+
     if (score > bestScore) {
       bestScore = score;
       bestIdx   = i;
@@ -110,10 +122,15 @@ export async function dequeueMatch(userId, myGender, myPref, myInterests, myLang
   }
 
   // If no match found in queue, return null
-  if (bestIdx === -1) return null;
+  if (bestIdx === -1) {
+    console.log("[DEBUG] No match found in queue");
+    return null;
+  }
 
   const chosen = queue[bestIdx];
   queue.splice(bestIdx, 1);
+
+  console.log("[DEBUG] Match found:", { partnerId: chosen.userId, partnerGender: chosen.gender, partnerPref: chosen.pref });
 
   const shared = myInts.filter(x => chosen.interests.includes(x));
   return { partnerId: chosen.userId, shared, partnerVibes: chosen.vibes || [] };
