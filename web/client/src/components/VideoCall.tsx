@@ -100,51 +100,36 @@ export default function VideoCall({ localStream, remoteStream, callError, userId
     }
   }, [localStream]);
 
-  // ── Remote video: driven entirely via ref, no React render cycle ────────
-  // We keep a stable callback ref so the effect below never needs to re-run.
-  const attachRemoteStream = useCallback((stream: MediaStream | null) => {
+  // ── Remote video: driven entirely via ref ───────────────────────────────
+  useEffect(() => {
     const video = remoteRef.current;
     if (!video) return;
-    if (stream) {
-      // Always re-assign — even if same object, re-assigning srcObject
-      // tells the browser to re-read the tracks (handles track replacement).
-      video.srcObject = stream;
-      video.muted = true; // required for autoplay in Chrome/Safari
-      const tryPlay = () =>
-        video.play().then(() => {
-          setRemoteVideoPlaying(true);
-          setRemoteVideoRetryNeeded(false);
-        }).catch(() => {
-          // Autoplay blocked or not ready yet — the interval below retries
-          setRemoteVideoRetryNeeded(true);
-        });
-      void tryPlay();
-    } else {
+    if (!remoteStream) {
       video.srcObject = null;
       setRemoteVideoPlaying(false);
+      return;
     }
-  }, []);
+    video.srcObject = remoteStream;
+    video.muted = true;
+    video.play().then(() => {
+      setRemoteVideoPlaying(true);
+      setRemoteVideoRetryNeeded(false);
+    }).catch(() => {
+      setRemoteVideoRetryNeeded(true);
+    });
+  }, [remoteStream]);
 
-  // Drive the video element every time remoteStream changes.
+  // Retry every 500ms until playing — handles the case where play() was
+  // called before the TURN relay opened and frames started flowing.
   useEffect(() => {
-    attachRemoteStream(remoteStream);
-  }, [remoteStream, attachRemoteStream]);
-
-  // Fallback: if the video element has a stream but isn't playing,
-  // keep retrying every 500 ms until it starts.
-  useEffect(() => {
-    if (!remoteStream) return;
+    if (!remoteStream || remoteVideoPlaying) return;
     const id = setInterval(() => {
       const video = remoteRef.current;
       if (!video) return;
-      if (!remoteVideoPlaying) {
-        video.muted = true;
-        video.play()
-          .then(() => { setRemoteVideoPlaying(true); setRemoteVideoRetryNeeded(false); })
-          .catch(() => {});
-      } else {
-        clearInterval(id);
-      }
+      video.muted = true;
+      video.play()
+        .then(() => { setRemoteVideoPlaying(true); setRemoteVideoRetryNeeded(false); })
+        .catch(() => {});
     }, 500);
     return () => clearInterval(id);
   }, [remoteStream, remoteVideoPlaying]);
