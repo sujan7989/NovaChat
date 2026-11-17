@@ -81,7 +81,7 @@ User (Browser)
 | Database | Redis (Upstash) + in-memory fallback |
 | AI | Groq API (llama3-8b-8192) |
 | Video | WebRTC + Metered.ca TURN servers |
-| Hosting | Vercel (client) + Railway (server) |
+| Hosting | Vercel (client) + Render (server) |
 
 ---
 
@@ -177,7 +177,7 @@ NODE_ENV=production
 
 ### Client (`web/client/.env.production`)
 ```
-VITE_API_URL=https://novachat-production-57d2.up.railway.app
+VITE_BACKEND_URL=https://your-render-service.onrender.com
 ```
 
 ---
@@ -185,7 +185,7 @@ VITE_API_URL=https://novachat-production-57d2.up.railway.app
 ## Deployment
 
 - **Client** → Push to GitHub → Vercel auto-deploys
-- **Server** → Push to GitHub → Railway auto-deploys
+- **Server** → Push to GitHub → Render auto-deploys (see DEPLOY.md for details)
 
 ---
 

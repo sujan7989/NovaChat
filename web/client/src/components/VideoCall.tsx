@@ -115,7 +115,11 @@ export default function VideoCall({ localStream, remoteStream, callError, userId
   useEffect(() => {
     const video = remoteRef.current;
     if (!video) return;
-    if (video.srcObject !== remoteStream) video.srcObject = remoteStream;
+    if (video.srcObject !== remoteStream) {
+      video.srcObject = remoteStream;
+      // Force a reload of the video element when stream changes
+      video.load();
+    }
     video.muted = true;
   }, [remoteStream]);
 

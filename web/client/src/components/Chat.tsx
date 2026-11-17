@@ -207,15 +207,21 @@ export default function Chat({ profile, onStop }: Props) {
     };
     const handleSocketDisconnect = () => {
       setSocketConnected(false);
-      cleanup();
-      setShowVideo(false);
+      // Only cleanup video call if it was active - prevents unnecessary cleanup
+      if (showVideo) {
+        cleanup();
+        setShowVideo(false);
+      }
       setReconnecting(true);
     };
     const handleReconnectAttempt = () => setReconnecting(true);
     const handleReconnect = () => {
       setReconnecting(false);
       showToast("Reconnected", "success");
-      socket.emit("find", { ...profile, languages: profile.languages, vibes: profile.vibes });
+      // Re-queue for matching after reconnect
+      if (status === "searching" || status === "chatting") {
+        socket.emit("find", { ...profile, languages: profile.languages, vibes: profile.vibes });
+      }
     };
 
     socket.on("connect", handleSocketConnect);

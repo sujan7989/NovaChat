@@ -15,10 +15,30 @@ const socket = io(API_URL, {
   transports: ["polling", "websocket"],
   reconnection: true,
   reconnectionAttempts: Infinity,
-  reconnectionDelay: 600,
-  reconnectionDelayMax: 4000,
-  timeout: 20000,
+  reconnectionDelay: 1000, // Increased from 600ms for better stability on slow networks
+  reconnectionDelayMax: 10000, // Increased from 4000ms to handle longer network outages
+  timeout: 30000, // Increased from 20000ms for slower mobile networks
 });
+
+// #region debug-point C:socket-transport
+const reportSocketDebug = (hypothesisId: string, msg: string, data: Record<string, unknown> = {}) => {
+  if (typeof window === "undefined" || !["localhost", "127.0.0.1"].includes(window.location.hostname)) return;
+  void fetch("http://127.0.0.1:7777/event", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sessionId: "socket-connection-issue", runId: "post-fix", hypothesisId, location: "web/client/src/socket.ts", msg: `[DEBUG] ${msg}`, data, ts: Date.now() }) }).catch(() => {});
+};
+socket.io.on("open", () => {
+  const engine = socket.io.engine;
+  reportSocketDebug("C", "engine opened", { transport: engine?.transport.name });
+  engine?.on("upgrade", (transport) => reportSocketDebug("C", "socket transport upgraded", { transport: transport.name }));
+});
+socket.on("connect", () => reportSocketDebug("C", "socket connected", { transport: socket.io.engine?.transport.name }));
+socket.on("connect_error", (error) => reportSocketDebug("C", "socket connect_error", { name: error.name, message: error.message }));
+socket.on("disconnect", (reason) => reportSocketDebug("C", "socket disconnected", { reason }));
+socket.io.on("reconnect_attempt", (attempt) => reportSocketDebug("C", "socket reconnect attempt", { attempt }));
+socket.onAnyOutgoing((event) => { if (event === "find") reportSocketDebug("D", "matchmaking find emitted"); });
+socket.on("queued", () => reportSocketDebug("D", "matchmaking queued"));
+socket.on("matched", () => reportSocketDebug("D", "matchmaking matched"));
+socket.on("error_msg", (error: { msg?: string }) => reportSocketDebug("D", "server rejected matchmaking event", { message: error.msg }));
+// #endregion
 
 // Reconnect promptly when a backgrounded tab becomes visible again (mobile).
 if (typeof document !== "undefined") {

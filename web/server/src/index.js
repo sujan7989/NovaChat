@@ -22,10 +22,12 @@ const httpServer = createServer(app);
 const io = new Server(httpServer, {
   cors: { origin: "*", methods: ["GET", "POST"] },
   maxHttpBufferSize: 6 * 1024 * 1024,
-  pingTimeout: 20000,    // 20s — detect dead connections faster
-  pingInterval: 15000,   // ping every 15s
-  connectTimeout: 30000,
+  pingTimeout: 25000,    // Increased to 25s for better video call stability on slow networks
+  pingInterval: 10000,   // Reduced to 10s for faster dead connection detection
+  connectTimeout: 45000, // Increased to 45s for slower mobile networks
   transports: ["websocket", "polling"],
+  // Allow more connections per IP for better video call support
+  allowUpgrades: true,
 });
 
 // CORS must be first — ensures headers on ALL responses including errors
@@ -66,11 +68,20 @@ const ICE_CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour — Metered credentials are l
 let iceCache = { at: 0, servers: null };
 
 const OPEN_RELAY_ICE = [
+  // Google STUN — direct P2P discovery
   { urls: "stun:stun.l.google.com:19302" },
   { urls: "stun:stun1.l.google.com:19302" },
+  { urls: "stun:stun2.l.google.com:19302" },
+  { urls: "stun:stun3.l.google.com:19302" },
+  { urls: "stun:stun4.l.google.com:19302" },
+  // OpenRelay TURN — free, no card. UDP first for low latency, then TCP and
+  // TLS (turns:) fallbacks to evade corporate / strict-mobile firewalls.
   { urls: "turn:openrelay.metered.ca:80", username: "openrelayproject", credential: "openrelayproject" },
   { urls: "turn:openrelay.metered.ca:443", username: "openrelayproject", credential: "openrelayproject" },
   { urls: "turn:openrelay.metered.ca:443?transport=tcp", username: "openrelayproject", credential: "openrelayproject" },
+  { urls: "turn:openrelay.metered.ca:80?transport=tcp", username: "openrelayproject", credential: "openrelayproject" },
+  { urls: "turns:openrelay.metered.ca:443", username: "openrelayproject", credential: "openrelayproject" },
+  { urls: "turns:openrelay.metered.ca:443?transport=tcp", username: "openrelayproject", credential: "openrelayproject" },
 ];
 
 // Metered serves credentials from your app subdomain: <appname>.metered.live.
