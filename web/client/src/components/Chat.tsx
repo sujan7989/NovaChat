@@ -233,7 +233,12 @@ export default function Chat({ profile, onStop }: Props) {
     };
 
     socket.on("connect", handleSocketConnect);
-    socket.on("queued", () => setStatus("searching"));
+    socket.on("queued", () => {
+      setStatus("searching");
+      setMessages([]);
+      setShowVideo(false);
+      cleanup();
+    });
     socket.on("matched", ({ shared, partnerVibes, icebreaker }: { shared: string[]; partnerVibes?: string[]; icebreaker?: string }) => {
       setStatus("chatting");
       setMessages([]);
@@ -264,7 +269,10 @@ export default function Chat({ profile, onStop }: Props) {
       cleanup();
       setShowVideo(false);
       addMsg({ from: "stranger", type: "text", text: "Stranger left the chat.", system: true });
-      setTimeout(() => setShowRating(true), 1500);
+      // Show rating briefly then auto-dismiss — server will auto-requeue us
+      setTimeout(() => setShowRating(true), 800);
+      // Auto-dismiss rating after 5 seconds so server's queued event can transition UI
+      setTimeout(() => setShowRating(false), 5800);
       socket.emit("submit_for_summary", { userId: profileRef.current.userId, messages: messagesRef.current });
     });
     socket.on("chat_summary", ({ summary }: { summary: string }) => setChatSummary(summary));

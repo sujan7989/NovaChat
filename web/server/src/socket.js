@@ -22,8 +22,9 @@ import { createLogger } from "./logger.js";
 const logger = createLogger("socket");
 const filter = new Filter();
 
-const socketToUser = new Map();
-const userToSocket = new Map();
+const socketToUser = new Map(); // socketId → userId
+const userToSocket = new Map(); // userId → socketId
+const userPrefs    = new Map(); // userId → { gender, pref, interests, languages, vibes }
 
 function makeRateLimiter() {
   let count = 0;
@@ -39,7 +40,6 @@ function makeRateLimiter() {
 let _io = null;
 
 export function getOnlineCount() {
-  // Count all connected sockets — accurate real-time count
   return _io ? _io.sockets.sockets.size : 0;
 }
 
@@ -54,76 +54,132 @@ export function getSocketStats() {
 function broadcastOnlineCount() {
   if (_io) _io.emit("online_count", { count: getOnlineCount() });
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// doMatch: emit matched to both users, increment stat.
+// ─────────────────────────────────────────────────────────────────────────────
+async function doMatch(io, socketA, socketB, shared, partnerVibesForA, partnerVibesForB) {
+  generateIcebreaker(shared, partnerVibesForA).then(icebreaker => {
+    io.to(socketA).emit("matched", { shared, partnerVibes: partnerVibesForA, icebreaker });
+    io.to(socketB).emit("matched", { shared, icebreaker });
+  }).catch(() => {
+    io.to(socketA).emit("matched", { shared, partnerVibes: partnerVibesForA });
+    io.to(socketB).emit("matched", { shared });
+  });
+  await getStore().incrementStat("active_chats");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// autoRequeue: after a pair breaks, immediately try to match the freed user.
+// If no match yet, enqueue them and emit "queued".
+// This is the key fix for the N-person problem — no manual clicking needed.
+// ─────────────────────────────────────────────────────────────────────────────
+async function autoRequeue(io, userId) {
+  const ps = userToSocket.get(userId);
+  if (!ps) return; // user offline
+
+  const prefs = userPrefs.get(userId);
+  if (!prefs) {
+    io.to(ps).emit("queued");
+    return;
+  }
+
+  try {
+    const match = await findOrQueue(
+      userId, prefs.gender, prefs.pref,
+      prefs.interests, prefs.languages, prefs.vibes
+    );
+    if (match) {
+      const rps = userToSocket.get(match.partnerId);
+      if (rps) {
+        await doMatch(io, ps, rps, match.shared, match.partnerVibes, []);
+        logger.info(`Auto-rematch: ${userId} <-> ${match.partnerId}`);
+      } else {
+        // matched user's socket gone — undo and try again
+        await getStore().removePair(userId);
+        await getStore().enqueue(userId, prefs.gender, prefs.pref, prefs.interests, prefs.languages, prefs.vibes);
+        io.to(ps).emit("queued");
+      }
+    } else {
+      // in queue now, waiting
+      io.to(ps).emit("queued");
+    }
+  } catch (err) {
+    logger.error(`autoRequeue error for ${userId}: ${err.message}`);
+    io.to(ps).emit("queued");
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// breakPair: disconnect a user, notify their partner, auto-requeue partner.
+// ─────────────────────────────────────────────────────────────────────────────
+async function breakPair(io, userId, { requeueSelf = false } = {}) {
+  const partnerId = await disconnectUser(userId);
+  if (partnerId) {
+    const ps = userToSocket.get(partnerId);
+    if (ps) io.to(ps).emit("stranger_left");
+    await getStore().decrementStat("active_chats").catch(() => {});
+    // Immediately re-queue the freed partner — no manual click needed
+    await autoRequeue(io, partnerId);
+    logger.info(`breakPair: ${userId} freed ${partnerId}`);
+  }
+  if (requeueSelf) {
+    await autoRequeue(io, userId);
+  }
+  return partnerId;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 export function initSocket(io) {
   _io = io;
-  io.on("connection", (socket) => {
-    logger.info(`Connected: ${socket.id} from ${socket.handshake.address}`);
-    const msgRateOk = makeRateLimiter();
 
-    // Broadcast updated count to everyone
+  io.on("connection", (socket) => {
+    logger.info(`Connected: ${socket.id}`);
+    const msgRateOk = makeRateLimiter();
     broadcastOnlineCount();
 
+    // ── find ────────────────────────────────────────────────────────────────
     socket.on("find", async (payload) => {
-      const validation = validateFindPayload(payload);
-      if (validation.error) {
-        logger.warn(`Invalid find payload from ${socket.id}: ${validation.error}`);
-        socket.emit("error_msg", { msg: validation.error, details: validation.details });
-        return;
-      }
+      const v = validateFindPayload(payload);
+      if (v.error) { socket.emit("error_msg", { msg: v.error, details: v.details }); return; }
 
-      const { userId, gender, pref, interests, languages, vibes } = validation.data;
+      const { userId, gender, pref, interests, languages, vibes } = v.data;
 
-      // Handle reconnect: if this userId already maps to a different (stale) socket, clean it up
-      const existingSocketId = userToSocket.get(userId);
-      if (existingSocketId && existingSocketId !== socket.id) {
-        socketToUser.delete(existingSocketId);
-        logger.info(`Cleaned stale socket mapping for ${userId}`);
+      // Clean up stale socket mapping from previous connection
+      const prevSocket = userToSocket.get(userId);
+      if (prevSocket && prevSocket !== socket.id) {
+        socketToUser.delete(prevSocket);
       }
 
       socketToUser.set(socket.id, userId);
       userToSocket.set(userId, socket.id);
-      logger.info(`Find request: ${userId} (gender=${gender}, pref=${pref})`);
+      userPrefs.set(userId, { gender, pref, interests, languages, vibes });
+      logger.info(`Find: ${userId} (${gender}, pref=${pref})`);
 
       try {
-        // Clear any stale session from a previous connection before finding a new match
-        const stalePartner = await getStore().getPartner(userId);
-        if (stalePartner) {
+        // Clear stale session if any
+        const stale = await getStore().getPartner(userId);
+        if (stale) {
           await disconnectUser(userId);
-          logger.info(`Cleared stale session for ${userId} (was paired with ${stalePartner})`);
+          logger.info(`Cleared stale session for ${userId}`);
         }
 
         const match = await findOrQueue(userId, gender, pref, interests, languages, vibes);
         if (match) {
-          const partnerSocket = userToSocket.get(match.partnerId);
-          if (partnerSocket) {
-            // Generate AI icebreaker in background — don't block matching
-            generateIcebreaker(match.shared, match.partnerVibes).then(icebreaker => {
-              socket.emit("matched", { shared: match.shared, partnerVibes: match.partnerVibes, icebreaker });
-              io.to(partnerSocket).emit("matched", { shared: match.shared, icebreaker });
-            }).catch(() => {
-              socket.emit("matched", { shared: match.shared, partnerVibes: match.partnerVibes });
-              io.to(partnerSocket).emit("matched", { shared: match.shared });
-            });
-            await getStore().incrementStat("active_chats");
-            logger.info(`Match created: ${userId} <-> ${match.partnerId}`);
+          const ps = userToSocket.get(match.partnerId);
+          if (ps) {
+            await doMatch(io, socket.id, ps, match.shared, match.partnerVibes, []);
+            logger.info(`Matched: ${userId} <-> ${match.partnerId}`);
           } else {
-            // Partner's socket is gone — undo both sides of the pair and re-attempt matching
-            // immediately so the user isn't stuck waiting behind a ghost entry.
-            await getStore().removePair(userId);          // also clears partnerId → userId
-            await getStore().removeFromQueue(userId);     // ensure not duplicated in queue
+            // Ghost partner — undo and retry
+            await getStore().removePair(userId);
+            await getStore().removeFromQueue(userId);
             const rematch = await findOrQueue(userId, gender, pref, interests, languages, vibes);
             if (rematch) {
-              const repartnerSocket = userToSocket.get(rematch.partnerId);
-              if (repartnerSocket) {
-                generateIcebreaker(rematch.shared, rematch.partnerVibes).then(icebreaker => {
-                  socket.emit("matched", { shared: rematch.shared, partnerVibes: rematch.partnerVibes, icebreaker });
-                  io.to(repartnerSocket).emit("matched", { shared: rematch.shared, icebreaker });
-                }).catch(() => {
-                  socket.emit("matched", { shared: rematch.shared, partnerVibes: rematch.partnerVibes });
-                  io.to(repartnerSocket).emit("matched", { shared: rematch.shared });
-                });
-                await getStore().incrementStat("active_chats");
-                logger.info(`Rematch: ${userId} <-> ${rematch.partnerId} (after ghost partner ${match.partnerId})`);
+              const rps = userToSocket.get(rematch.partnerId);
+              if (rps) {
+                await doMatch(io, socket.id, rps, rematch.shared, rematch.partnerVibes, []);
+                logger.info(`Rematch: ${userId} <-> ${rematch.partnerId}`);
               } else {
                 await getStore().removePair(userId);
                 await getStore().enqueue(userId, gender, pref, interests, languages, vibes);
@@ -132,127 +188,84 @@ export function initSocket(io) {
             } else {
               socket.emit("queued");
             }
-            logger.warn(`Ghost partner socket for ${match.partnerId} — rematched ${userId}`);
           }
         } else {
           socket.emit("queued");
         }
       } catch (err) {
-        logger.error(`Error in find handler: ${err.message}`);
+        logger.error(`find error: ${err.message}`);
         socket.emit("error_msg", { msg: "Failed to find match" });
       }
     });
 
+    // ── message ─────────────────────────────────────────────────────────────
     socket.on("message", async (payload) => {
-      if (!msgRateOk()) {
-        socket.emit("rate_limited", { msg: "Slow down!" });
-        return;
-      }
+      if (!msgRateOk()) { socket.emit("rate_limited", { msg: "Slow down!" }); return; }
+      const v = validateMessagePayload(payload);
+      if (v.error) return;
+      const { userId, text } = v.data;
 
-      const validation = validateMessagePayload(payload);
-      if (validation.error) {
-        logger.warn(`Invalid message payload from ${socket.id}: ${validation.error}`);
-        return;
-      }
-
-      const { userId, text } = validation.data;
-
-      // AI Moderation — block toxic messages
       let cleanText = text;
       let wasProfane = false;
       try {
-        if (filter.isProfane(text)) {
-          wasProfane = true;
-          cleanText = filter.clean(text);
-        }
+        if (filter.isProfane(text)) { wasProfane = true; cleanText = filter.clean(text); }
       } catch {}
-
-      if (wasProfane) {
-        socket.emit("moderation_warning", { msg: "⚠️ Your message contained inappropriate content and was filtered." });
-      }
+      if (wasProfane) socket.emit("moderation_warning", { msg: "⚠️ Message filtered." });
 
       try {
         const partnerId = await getStore().getPartner(userId);
         if (!partnerId) return;
-
         const ps = userToSocket.get(partnerId);
         if (ps) {
           io.to(ps).emit("message", { text: cleanText, from: "stranger" });
-          // Delivered status — notify sender their message was delivered
           socket.emit("message_delivered", { text });
         }
-      } catch (err) {
-        logger.error(`Error in message handler: ${err.message}`);
-      }
+      } catch (err) { logger.error(`message error: ${err.message}`); }
     });
 
+    // ── image ────────────────────────────────────────────────────────────────
     socket.on("image", async (payload) => {
-      if (!msgRateOk()) {
-        socket.emit("rate_limited", { msg: "Slow down!" });
-        return;
-      }
-
-      const validation = validateImagePayload(payload);
-      if (validation.error) {
-        logger.warn(`Invalid image payload from ${socket.id}: ${validation.error}`);
-        socket.emit("error_msg", { msg: validation.error, details: validation.details });
-        return;
-      }
-
-      const { userId, dataUrl, caption } = validation.data;
-
-      if (dataUrl.length > MAX_IMAGE_BASE64) {
-        socket.emit("error_msg", { msg: "Image too large (max 5MB)." });
-        return;
-      }
-
+      if (!msgRateOk()) { socket.emit("rate_limited", { msg: "Slow down!" }); return; }
+      const v = validateImagePayload(payload);
+      if (v.error) { socket.emit("error_msg", { msg: v.error }); return; }
+      const { userId, dataUrl, caption } = v.data;
+      if (dataUrl.length > MAX_IMAGE_BASE64) { socket.emit("error_msg", { msg: "Image too large (max 5MB)." }); return; }
       try {
         const partnerId = await getStore().getPartner(userId);
         if (!partnerId) return;
-
         const ps = userToSocket.get(partnerId);
         if (ps) io.to(ps).emit("image", { dataUrl, caption, from: "stranger" });
-      } catch (err) {
-        logger.error(`Error in image handler: ${err.message}`);
-      }
+      } catch (err) { logger.error(`image error: ${err.message}`); }
     });
 
+    // ── typing ───────────────────────────────────────────────────────────────
     socket.on("typing", async (payload) => {
-      const validation = validateTypingPayload(payload);
-      if (validation.error) return;
-
-      const { userId, isTyping } = validation.data;
-
+      const v = validateTypingPayload(payload);
+      if (v.error) return;
+      const { userId, isTyping } = v.data;
       try {
         const partnerId = await getStore().getPartner(userId);
         if (!partnerId) return;
-
         const ps = userToSocket.get(partnerId);
         if (ps) io.to(ps).emit("typing", { isTyping });
-      } catch (err) {
-        logger.error(`Error in typing handler: ${err.message}`);
-      }
+      } catch (err) { logger.error(`typing error: ${err.message}`); }
     });
 
+    // ── videochat:message ────────────────────────────────────────────────────
     socket.on("videochat:message", async (payload) => {
       if (!msgRateOk()) return;
-
-      const validation = validateVideoChatMessagePayload(payload);
-      if (validation.error) return;
-
-      const { userId, text } = validation.data;
-
+      const v = validateVideoChatMessagePayload(payload);
+      if (v.error) return;
+      const { userId, text } = v.data;
       try {
         const partnerId = await getStore().getPartner(userId);
         if (!partnerId) return;
-
         const ps = userToSocket.get(partnerId);
         if (ps) io.to(ps).emit("videochat:message", { text });
-      } catch (err) {
-        logger.error(`Error in videochat message handler: ${err.message}`);
-      }
+      } catch (err) { logger.error(`videochat:message error: ${err.message}`); }
     });
 
+    // ── videochat:typing ─────────────────────────────────────────────────────
     socket.on("videochat:typing", async (payload) => {
       if (!payload?.userId) return;
       try {
@@ -263,181 +276,114 @@ export function initSocket(io) {
       } catch {}
     });
 
+    // ── webrtc:offer ─────────────────────────────────────────────────────────
     socket.on("webrtc:offer", async (payload) => {
-      const validation = validateWebRTCPayload(payload);
-      if (validation.error) return;
-
-      const { userId, offer } = validation.data;
-
+      const v = validateWebRTCPayload(payload);
+      if (v.error) return;
+      const { userId, offer } = v.data;
       try {
         const partnerId = await getStore().getPartner(userId);
         if (!partnerId) return;
-
         const ps = userToSocket.get(partnerId);
         if (ps) io.to(ps).emit("webrtc:offer", { offer });
-      } catch (err) {
-        logger.error(`Error in webrtc offer handler: ${err.message}`);
-      }
+      } catch (err) { logger.error(`webrtc:offer error: ${err.message}`); }
     });
 
+    // ── webrtc:answer ────────────────────────────────────────────────────────
     socket.on("webrtc:answer", async (payload) => {
-      const validation = validateWebRTCPayload(payload);
-      if (validation.error) return;
-
-      const { userId, answer } = validation.data;
-
+      const v = validateWebRTCPayload(payload);
+      if (v.error) return;
+      const { userId, answer } = v.data;
       try {
         const partnerId = await getStore().getPartner(userId);
         if (!partnerId) return;
-
         const ps = userToSocket.get(partnerId);
         if (ps) io.to(ps).emit("webrtc:answer", { answer });
-      } catch (err) {
-        logger.error(`Error in webrtc answer handler: ${err.message}`);
-      }
+      } catch (err) { logger.error(`webrtc:answer error: ${err.message}`); }
     });
 
+    // ── webrtc:ice ───────────────────────────────────────────────────────────
     socket.on("webrtc:ice", async (payload) => {
-      const validation = validateWebRTCPayload(payload);
-      if (validation.error) return;
-
-      const { userId, candidate } = validation.data;
-
+      const v = validateWebRTCPayload(payload);
+      if (v.error) return;
+      const { userId, candidate } = v.data;
       try {
         const partnerId = await getStore().getPartner(userId);
         if (!partnerId) return;
-
         const ps = userToSocket.get(partnerId);
         if (ps) io.to(ps).emit("webrtc:ice", { candidate });
-      } catch (err) {
-        logger.error(`Error in webrtc ice handler: ${err.message}`);
-      }
+      } catch (err) { logger.error(`webrtc:ice error: ${err.message}`); }
     });
 
+    // ── webrtc:end ───────────────────────────────────────────────────────────
     socket.on("webrtc:end", async (payload) => {
-      const validation = validateUserIdPayload(payload);
-      if (validation.error) return;
-
-      const { userId } = validation.data;
-
+      const v = validateUserIdPayload(payload);
+      if (v.error) return;
+      const { userId } = v.data;
       try {
         const partnerId = await getStore().getPartner(userId);
         if (!partnerId) return;
-
         const ps = userToSocket.get(partnerId);
         if (ps) io.to(ps).emit("webrtc:end");
-      } catch (err) {
-        logger.error(`Error in webrtc end handler: ${err.message}`);
-      }
+      } catch (err) { logger.error(`webrtc:end error: ${err.message}`); }
     });
 
+    // ── next ─────────────────────────────────────────────────────────────────
+    // User presses "Next stranger": break current pair, requeue BOTH users.
     socket.on("next", async (payload) => {
-      const validation = validateFindPayload(payload);
-      if (validation.error) {
-        logger.warn(`Invalid next payload from ${socket.id}: ${validation.error}`);
-        socket.emit("error_msg", { msg: validation.error });
-        return;
-      }
+      const v = validateFindPayload(payload);
+      if (v.error) { socket.emit("error_msg", { msg: v.error }); return; }
+      const { userId, gender, pref, interests, languages, vibes } = v.data;
 
-      const { userId, gender, pref, interests, languages, vibes } = validation.data;
+      // Update prefs in case they changed
+      userPrefs.set(userId, { gender, pref, interests, languages, vibes });
 
       try {
-        const partnerId = await disconnectUser(userId);
-        if (partnerId) {
-          const ps = userToSocket.get(partnerId);
-          if (ps) io.to(ps).emit("stranger_left");
-          await getStore().decrementStat("active_chats").catch(() => {});
-          logger.info(`User ${userId} skipped, notified ${partnerId}`);
-        }
+        // Break pair — partner gets stranger_left + auto-requeue
+        await breakPair(io, userId, { requeueSelf: false });
 
+        // Now queue self
         const match = await findOrQueue(userId, gender, pref, interests, languages, vibes);
         if (match) {
           const ps = userToSocket.get(match.partnerId);
           if (ps) {
-            generateIcebreaker(match.shared, match.partnerVibes).then(icebreaker => {
-              socket.emit("matched", { shared: match.shared, partnerVibes: match.partnerVibes, icebreaker });
-              io.to(ps).emit("matched", { shared: match.shared, icebreaker });
-            }).catch(() => {
-              socket.emit("matched", { shared: match.shared, partnerVibes: match.partnerVibes });
-              io.to(ps).emit("matched", { shared: match.shared });
-            });
-            await getStore().incrementStat("active_chats");
+            await doMatch(io, socket.id, ps, match.shared, match.partnerVibes, []);
             logger.info(`Next match: ${userId} <-> ${match.partnerId}`);
           } else {
-            // Ghost partner — undo pair and re-queue
             await getStore().removePair(userId);
-            await getStore().removeFromQueue(userId);
-            const rematch = await findOrQueue(userId, gender, pref, interests, languages, vibes);
-            if (rematch) {
-              const rps = userToSocket.get(rematch.partnerId);
-              if (rps) {
-                generateIcebreaker(rematch.shared, rematch.partnerVibes).then(icebreaker => {
-                  socket.emit("matched", { shared: rematch.shared, partnerVibes: rematch.partnerVibes, icebreaker });
-                  io.to(rps).emit("matched", { shared: rematch.shared, icebreaker });
-                }).catch(() => {
-                  socket.emit("matched", { shared: rematch.shared, partnerVibes: rematch.partnerVibes });
-                  io.to(rps).emit("matched", { shared: rematch.shared });
-                });
-                await getStore().incrementStat("active_chats");
-              } else {
-                await getStore().removePair(userId);
-                await getStore().enqueue(userId, gender, pref, interests, languages, vibes);
-                socket.emit("queued");
-              }
-            } else {
-              socket.emit("queued");
-            }
-            logger.warn(`Ghost partner socket on next for ${match.partnerId}`);
+            await getStore().enqueue(userId, gender, pref, interests, languages, vibes);
+            socket.emit("queued");
           }
         } else {
           socket.emit("queued");
         }
       } catch (err) {
-        logger.error(`Error in next handler: ${err.message}`);
+        logger.error(`next error: ${err.message}`);
         socket.emit("error_msg", { msg: "Failed to find new match" });
       }
     });
 
+    // ── stop ─────────────────────────────────────────────────────────────────
+    // User leaves chat entirely — break pair, requeue partner, don't requeue self.
     socket.on("stop", async (payload) => {
-      const validation = validateUserIdPayload(payload);
-      if (validation.error) {
-        logger.warn(`Invalid stop payload from ${socket.id}: ${validation.error}`);
-        return;
-      }
-
-      const { userId } = validation.data;
-
+      const v = validateUserIdPayload(payload);
+      if (v.error) return;
+      const { userId } = v.data;
       try {
-        const partnerId = await disconnectUser(userId);
-        if (partnerId) {
-          const ps = userToSocket.get(partnerId);
-          if (ps) io.to(ps).emit("stranger_left");
-          await getStore().decrementStat("active_chats").catch(() => {});
-          logger.info(`User ${userId} stopped chat with ${partnerId}`);
-        }
-        // Remove user from online chatters when they stop chatting
+        await breakPair(io, userId, { requeueSelf: false });
         socket.emit("stopped");
-      } catch (err) {
-        logger.error(`Error in stop handler: ${err.message}`);
-      }
+      } catch (err) { logger.error(`stop error: ${err.message}`); }
     });
 
+    // ── report ───────────────────────────────────────────────────────────────
     socket.on("report", async (payload) => {
-      const validation = validateUserIdPayload(payload);
-      if (validation.error) {
-        logger.warn(`Invalid report payload from ${socket.id}: ${validation.error}`);
-        return;
-      }
-
-      const { userId } = validation.data;
-
+      const v = validateUserIdPayload(payload);
+      if (v.error) return;
+      const { userId } = v.data;
       try {
         const s = getStore();
         const partnerId = await s.getPartner(userId);
-        if (!partnerId) {
-          socket.emit("error_msg", { msg: "No active chat to report" });
-          return;
-        }
+        if (!partnerId) { socket.emit("error_msg", { msg: "No active chat to report" }); return; }
 
         await disconnectUser(userId);
         const count = await s.addReport(partnerId);
@@ -446,19 +392,19 @@ export function initSocket(io) {
 
         const ps = userToSocket.get(partnerId);
         if (ps) {
-          io.to(ps).emit("stranger_left");
           if (count >= REPORT_BAN_THRESHOLD) {
             io.to(ps).emit("banned");
-            logger.warn(`User ${partnerId} banned after ${count} reports`);
+            logger.warn(`${partnerId} banned after ${count} reports`);
+          } else {
+            io.to(ps).emit("stranger_left");
+            await autoRequeue(io, partnerId);
           }
         }
-
-        logger.info(`User ${userId} reported ${partnerId} (report count: ${count})`);
-      } catch (err) {
-        logger.error(`Error in report handler: ${err.message}`);
-      }
+        logger.info(`${userId} reported ${partnerId} (count: ${count})`);
+      } catch (err) { logger.error(`report error: ${err.message}`); }
     });
 
+    // ── submit_for_summary ───────────────────────────────────────────────────
     socket.on("submit_for_summary", async (payload) => {
       if (!payload?.userId || !Array.isArray(payload.messages)) return;
       try {
@@ -467,64 +413,55 @@ export function initSocket(io) {
       } catch {}
     });
 
+    // ── rate_stranger ────────────────────────────────────────────────────────
     socket.on("rate_stranger", async (payload) => {
       if (!payload || typeof payload !== "object") return;
       const { userId, stars } = payload;
       if (!userId || typeof stars !== "number" || stars < 1 || stars > 5) return;
       try {
-        // We store who they last chatted with via a recent-partner lookup
         const recentPartner = await getStore().getRecentPartner(userId).catch(() => null);
         if (recentPartner) {
           await getStore().addRating(userId, recentPartner, Math.round(stars));
           socket.emit("rating_saved");
         }
-      } catch (err) {
-        logger.error(`Error in rate_stranger handler: ${err.message}`);
-      }
+      } catch (err) { logger.error(`rate_stranger error: ${err.message}`); }
     });
 
+    // ── disconnect ───────────────────────────────────────────────────────────
     socket.on("disconnect", async (reason) => {
       const userId = socketToUser.get(socket.id);
       if (userId) {
-        // Only clean up userToSocket if this socket is still the current one for this user
-        // (prevents wiping a fresh reconnect's mapping)
         if (userToSocket.get(userId) === socket.id) {
           userToSocket.delete(userId);
           try {
-            const partnerId = await disconnectUser(userId);
-            if (partnerId) {
-              const ps = userToSocket.get(partnerId);
-              if (ps) io.to(ps).emit("stranger_left");
-              await getStore().decrementStat("active_chats").catch(() => {});
-            }
+            // Break pair and auto-requeue partner
+            await breakPair(io, userId, { requeueSelf: false });
           } catch (err) {
-            logger.error(`Error during disconnect cleanup: ${err.message}`);
+            logger.error(`disconnect cleanup error: ${err.message}`);
           }
         }
         socketToUser.delete(socket.id);
+        userPrefs.delete(userId);
       }
-      logger.info(`Disconnected: ${socket.id} (reason: ${reason})`);
-      // Broadcast updated count after disconnect
+      logger.info(`Disconnected: ${socket.id} (${reason})`);
       broadcastOnlineCount();
     });
 
     socket.on("error", (err) => {
-      logger.error(`Socket error for ${socket.id}: ${err.message}`);
+      logger.error(`Socket error ${socket.id}: ${err.message}`);
     });
   });
 
-  // Periodic cleanup — remove ghost queue entries every 2 minutes
+  // Periodic cleanup every 2 minutes — remove dead socket mappings
   setInterval(async () => {
     try {
       const s = getStore();
-      // For each userId in the queue, check if their socket is still alive
-      // memstore expiry handles this already; for redis we rely on the 5-min TTL
-      // This loop cleans up userToSocket entries for dead sockets
       for (const [userId, socketId] of userToSocket.entries()) {
         if (!io.sockets.sockets.has(socketId)) {
-          logger.info(`Cleanup: removing ghost mapping for ${userId}`);
+          logger.info(`Cleanup: ghost mapping for ${userId}`);
           userToSocket.delete(userId);
           socketToUser.delete(socketId);
+          userPrefs.delete(userId);
           await s.removeFromQueue(userId).catch(() => {});
         }
       }
