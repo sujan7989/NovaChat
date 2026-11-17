@@ -114,8 +114,6 @@ export function useWebRTC(userId: string) {
               // Adaptive bitrate: higher for better quality, but scales down on poor connections
               params.encodings[0].maxBitrate = 3_000_000; // 3 Mbps for HD quality
               params.encodings[0].maxFramerate = 30;
-              // Enable scalability mode for better adaptation
-              params.encodings[0].scalabilityMode = "L1T3";
               sender.setParameters(params).catch(() => {});
             }
           }
