@@ -62,37 +62,31 @@ app.get("/api/config", (req, res) => {
 });
 
 // ICE servers endpoint — provides STUN + TURN config to clients.
-// Priority: Metered (if METERED_API_KEY set) → Xirsys (if XIRSYS_IDENT set)
-// → Cloudflare TURN (if CF_TURN_TOKEN set) → verified public free fallback.
-const ICE_CACHE_TTL_MS = 55 * 60 * 1000; // 55 min — refresh before 1-hour token expiry
+// Priority: Metered (METERED_API_KEY) → Xirsys (XIRSYS_IDENT) → free public fallback.
+// The free fallback uses multiple providers so if one is down others cover it.
+const ICE_CACHE_TTL_MS = 55 * 60 * 1000;
 let iceCache = { at: 0, servers: null };
 
-// Multi-provider verified-working free STUN + TURN fallback.
-// openrelay.metered.ca is frequently overloaded — replaced with
-// a diverse set of providers so at least one is reachable.
+// Verified-working free public STUN+TURN.
+// All openrelay / viagenie entries are removed — both are dead/overloaded.
+// freeturn.net is a live open COTURN instance (no signup, no card).
 const FREE_ICE_FALLBACK = [
-  // ── STUN (Google + Cloudflare + Twilio public) ──────────────────────────
+  // ── STUN ────────────────────────────────────────────────────────────────
   { urls: "stun:stun.l.google.com:19302" },
   { urls: "stun:stun1.l.google.com:19302" },
   { urls: "stun:stun2.l.google.com:19302" },
   { urls: "stun:stun3.l.google.com:19302" },
   { urls: "stun:stun4.l.google.com:19302" },
   { urls: "stun:stun.cloudflare.com:3478" },
-  // ── TURN — Metered public demo (most reliable free option) ──────────────
-  // These are Metered's own demo servers; available without an API key.
-  { urls: "turn:a.relay.metered.ca:80",              username: "83eebabf8b1ceff9bddfd", credential: "2D7JvfkOQtBdYW3R" },
-  { urls: "turn:a.relay.metered.ca:80?transport=tcp", username: "83eebabf8b1ceff9bddfd", credential: "2D7JvfkOQtBdYW3R" },
-  { urls: "turn:a.relay.metered.ca:443",             username: "83eebabf8b1ceff9bddfd", credential: "2D7JvfkOQtBdYW3R" },
-  { urls: "turns:a.relay.metered.ca:443",            username: "83eebabf8b1ceff9bddfd", credential: "2D7JvfkOQtBdYW3R" },
-  { urls: "turns:a.relay.metered.ca:443?transport=tcp", username: "83eebabf8b1ceff9bddfd", credential: "2D7JvfkOQtBdYW3R" },
-  // ── TURN — Viagenie public (long-running free server) ───────────────────
-  { urls: "turn:numb.viagenie.ca",                   username: "webrtc@live.com",           credential: "muazkh" },
-  // ── TURN — Open Relay (kept as last-resort) ─────────────────────────────
-  { urls: "turn:openrelay.metered.ca:80",            username: "openrelayproject",          credential: "openrelayproject" },
-  { urls: "turn:openrelay.metered.ca:443?transport=tcp", username: "openrelayproject",      credential: "openrelayproject" },
+  { urls: "stun:stun.relay.metered.ca:80" },
+  // ── TURN — freeturn.net (live COTURN, no signup) ─────────────────────
+  { urls: "turn:freeturn.net:3478",           username: "free",  credential: "free" },
+  { urls: "turn:freeturn.net:3478?transport=tcp", username: "free", credential: "free" },
+  { urls: "turns:freeturn.net:5349",          username: "free",  credential: "free" },
+  // ── TURN — turn.anyfirewall.com (another open COTURN) ────────────────
+  { urls: "turn:turn.anyfirewall.com:443?transport=tcp", username: "webrtc", credential: "webrtc" },
 ];
 
-// Fetch credentials from Metered managed TURN (requires METERED_API_KEY env var).
 async function fetchMeteredIceServers() {
   const apiKey = process.env.METERED_API_KEY;
   if (!apiKey) return null;
@@ -111,10 +105,8 @@ async function fetchMeteredIceServers() {
   }
 }
 
-// Fetch credentials from Xirsys (requires XIRSYS_IDENT + XIRSYS_SECRET env vars).
-// Free tier: 500 MB/month TURN relay — enough for ~50 hours of video.
 async function fetchXirsysIceServers() {
-  const ident = process.env.XIRSYS_IDENT;
+  const ident  = process.env.XIRSYS_IDENT;
   const secret = process.env.XIRSYS_SECRET;
   const channel = process.env.XIRSYS_CHANNEL || "novachat";
   if (!ident || !secret) return null;
@@ -135,12 +127,10 @@ async function fetchXirsysIceServers() {
 }
 
 app.get("/api/ice-servers", async (req, res) => {
-  // Serve cached credentials to avoid hammering provider APIs.
   if (iceCache.servers && Date.now() - iceCache.at < ICE_CACHE_TTL_MS) {
     return res.json({ iceServers: iceCache.servers });
   }
 
-  // Try providers in priority order; first success wins.
   const metered = await fetchMeteredIceServers();
   if (metered) {
     iceCache = { at: Date.now(), servers: metered };
@@ -155,8 +145,6 @@ app.get("/api/ice-servers", async (req, res) => {
     return res.json({ iceServers: xirsys });
   }
 
-  // No managed provider — return the multi-provider free fallback.
-  // Not cached so a later provider key takes effect immediately on next request.
   logger.info("ICE: serving free public fallback servers");
   res.json({ iceServers: FREE_ICE_FALLBACK });
 });

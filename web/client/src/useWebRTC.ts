@@ -9,26 +9,23 @@ const reportVideoDebug = (hypothesisId: string, msg: string, data: Record<string
 // #endregion
 
 async function getIceServers(): Promise<RTCIceServer[]> {
-  // Multi-provider fallback — used when /api/ice-servers is unreachable.
-  // Covers: Google STUN, Cloudflare STUN, Metered demo TURN, Viagenie TURN.
+  // Client-side fallback — used when /api/ice-servers is unreachable.
+  // All dead/overloaded servers (openrelay, viagenie) have been removed.
   const fallback: RTCIceServer[] = [
+    // STUN — always free, used for direct P2P (no relay needed)
     { urls: "stun:stun.l.google.com:19302" },
     { urls: "stun:stun1.l.google.com:19302" },
     { urls: "stun:stun2.l.google.com:19302" },
     { urls: "stun:stun3.l.google.com:19302" },
     { urls: "stun:stun4.l.google.com:19302" },
     { urls: "stun:stun.cloudflare.com:3478" },
-    // Metered demo TURN — most reliable free TURN available without an account
-    { urls: "turn:a.relay.metered.ca:80",               username: "83eebabf8b1ceff9bddfd", credential: "2D7JvfkOQtBdYW3R" },
-    { urls: "turn:a.relay.metered.ca:80?transport=tcp",  username: "83eebabf8b1ceff9bddfd", credential: "2D7JvfkOQtBdYW3R" },
-    { urls: "turn:a.relay.metered.ca:443",              username: "83eebabf8b1ceff9bddfd", credential: "2D7JvfkOQtBdYW3R" },
-    { urls: "turns:a.relay.metered.ca:443",             username: "83eebabf8b1ceff9bddfd", credential: "2D7JvfkOQtBdYW3R" },
-    { urls: "turns:a.relay.metered.ca:443?transport=tcp", username: "83eebabf8b1ceff9bddfd", credential: "2D7JvfkOQtBdYW3R" },
-    // Viagenie public TURN (long-running free server)
-    { urls: "turn:numb.viagenie.ca",                    username: "webrtc@live.com",          credential: "muazkh" },
-    // OpenRelay as final fallback
-    { urls: "turn:openrelay.metered.ca:80",             username: "openrelayproject",         credential: "openrelayproject" },
-    { urls: "turn:openrelay.metered.ca:443?transport=tcp", username: "openrelayproject",      credential: "openrelayproject" },
+    { urls: "stun:stun.relay.metered.ca:80" },
+    // TURN — freeturn.net (live open COTURN, no signup required)
+    { urls: "turn:freeturn.net:3478",              username: "free", credential: "free" },
+    { urls: "turn:freeturn.net:3478?transport=tcp", username: "free", credential: "free" },
+    { urls: "turns:freeturn.net:5349",             username: "free", credential: "free" },
+    // TURN — anyfirewall (another open COTURN, TCP-only but bypasses most firewalls)
+    { urls: "turn:turn.anyfirewall.com:443?transport=tcp", username: "webrtc", credential: "webrtc" },
   ];
   try {
     const res = await fetch(apiUrl("/api/ice-servers"));
