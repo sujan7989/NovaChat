@@ -64,7 +64,7 @@ app.get("/api/config", (req, res) => {
 // ICE servers endpoint — provides STUN + TURN config to clients.
 // Priority: Metered (METERED_API_KEY) → Xirsys (XIRSYS_IDENT) → free public fallback.
 // The free fallback uses multiple providers so if one is down others cover it.
-const ICE_CACHE_TTL_MS = 55 * 60 * 1000;
+const ICE_CACHE_TTL_MS = 5 * 60 * 1000; // 5 min — short cache so config changes apply fast
 let iceCache = { at: 0, servers: null };
 
 // Real Metered TURN credentials — used when no managed API key is set.
@@ -82,11 +82,10 @@ const FREE_ICE_FALLBACK = [
 async function fetchMeteredIceServers() {
   const apiKey = process.env.METERED_API_KEY;
   if (!apiKey) return null;
-  const appName = process.env.METERED_APP_NAME || "novachat";
-  const region = process.env.METERED_REGION;
-  const url =
-    `https://${appName}.metered.live/api/v1/turn/credentials?apiKey=${encodeURIComponent(apiKey)}` +
-    (region ? `&region=${encodeURIComponent(region)}` : "");
+  const appName = process.env.METERED_APP_NAME || "novachat-2026";
+  // Do NOT pass a region — use global anycast which auto-routes to nearest server.
+  // A fixed region (e.g. india) pins all traffic to one datacenter which can fail.
+  const url = `https://${appName}.metered.live/api/v1/turn/credentials?apiKey=${encodeURIComponent(apiKey)}`;
   try {
     const r = await fetch(url, { signal: AbortSignal.timeout(5000) });
     if (!r.ok) return null;

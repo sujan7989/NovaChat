@@ -98,13 +98,15 @@ export function useWebRTC(userId: string) {
       if (pc.connectionState === "connected") {
         setCallError(null);
       } else if (pc.connectionState === "failed") {
-        setCallError("Connection failed — check your network and retry.");
-        // Attempt ICE restart
-        if (pc.signalingState === "stable") {
+        // Try ICE restart before showing error to user
+        const canRestart = pc.signalingState === "stable";
+        if (canRestart) {
           pc.createOffer({ iceRestart: true })
             .then(o => pc.setLocalDescription(o))
             .then(() => socket.emit("webrtc:offer", { userId, offer: pc.localDescription }))
-            .catch(() => {});
+            .catch(() => setCallError("Connection failed — check your network and retry."));
+        } else {
+          setCallError("Connection failed — check your network and retry.");
         }
       }
     };
