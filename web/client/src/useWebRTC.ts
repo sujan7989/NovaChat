@@ -86,12 +86,14 @@ export function useWebRTC(userId: string) {
     };
 
     pc.ontrack = (e) => {
-      // Use the stream that the browser bundled the track into.
-      const incoming = e.streams[0] ?? new MediaStream([e.track]);
-      setRemoteStream(incoming);
-
-      // onunmute fires when the relay opens and frames actually start flowing.
-      e.track.onunmute = () => setRemoteStream(s => s ? new MediaStream(s.getTracks()) : incoming);
+      // Always wrap in a NEW MediaStream so React sees a new reference
+      // and VideoCall useEffect([remoteStream]) re-runs to set srcObject.
+      const tracks = e.streams[0] ? e.streams[0].getTracks() : [e.track];
+      setRemoteStream(new MediaStream(tracks));
+      e.track.onunmute = () => {
+        const t = e.streams[0] ? e.streams[0].getTracks() : [e.track];
+        setRemoteStream(new MediaStream(t));
+      };
     };
 
     pc.onconnectionstatechange = () => {
@@ -211,3 +213,4 @@ export function useWebRTC(userId: string) {
 
   return { localStream, remoteStream, callError, startCall, handleOffer, handleAnswer, handleIce, endCall, cleanup };
 }
+
