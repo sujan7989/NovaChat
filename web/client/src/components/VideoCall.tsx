@@ -100,48 +100,54 @@ export default function VideoCall({ localStream, remoteStream, callError, userId
     }
   }, [localStream]);
 
-  const playRemoteVideo = useCallback(async () => {
+  // ── Remote video: driven entirely via ref, no React render cycle ────────
+  // We keep a stable callback ref so the effect below never needs to re-run.
+  const attachRemoteStream = useCallback((stream: MediaStream | null) => {
     const video = remoteRef.current;
     if (!video) return;
-    video.muted = true; // must stay muted for autoplay policy
-    if (video.srcObject && (video.paused || video.readyState < 2)) {
-      try {
-        await video.play();
-        setRemoteVideoRetryNeeded(false);
-      } catch {
-        setRemoteVideoRetryNeeded(true);
-      }
+    if (stream) {
+      // Always re-assign — even if same object, re-assigning srcObject
+      // tells the browser to re-read the tracks (handles track replacement).
+      video.srcObject = stream;
+      video.muted = true; // required for autoplay in Chrome/Safari
+      const tryPlay = () =>
+        video.play().then(() => {
+          setRemoteVideoPlaying(true);
+          setRemoteVideoRetryNeeded(false);
+        }).catch(() => {
+          // Autoplay blocked or not ready yet — the interval below retries
+          setRemoteVideoRetryNeeded(true);
+        });
+      void tryPlay();
+    } else {
+      video.srcObject = null;
+      setRemoteVideoPlaying(false);
     }
   }, []);
 
-  // Assign srcObject and play whenever remoteStream changes.
-  // Never call video.load() on a MediaStream — it resets the element.
+  // Drive the video element every time remoteStream changes.
   useEffect(() => {
-    const video = remoteRef.current;
-    if (!video) return;
-    if (video.srcObject !== remoteStream) {
-      video.srcObject = remoteStream ?? null;
-      if (remoteStream) void playRemoteVideo();
-    }
-  }, [remoteStream, playRemoteVideo]);
+    attachRemoteStream(remoteStream);
+  }, [remoteStream, attachRemoteStream]);
 
-  // Poll every 800 ms: if the video element has a stream but hasn't started
-  // playing yet, nudge it. This covers the case where tracks arrive before
-  // ICE/TURN relay is fully open and onCanPlay never fires.
+  // Fallback: if the video element has a stream but isn't playing,
+  // keep retrying every 500 ms until it starts.
   useEffect(() => {
     if (!remoteStream) return;
     const id = setInterval(() => {
       const video = remoteRef.current;
       if (!video) return;
-      if (video.paused || video.readyState < 2) {
-        void playRemoteVideo();
+      if (!remoteVideoPlaying) {
+        video.muted = true;
+        video.play()
+          .then(() => { setRemoteVideoPlaying(true); setRemoteVideoRetryNeeded(false); })
+          .catch(() => {});
       } else {
-        setRemoteVideoPlaying(true);
         clearInterval(id);
       }
-    }, 800);
+    }, 500);
     return () => clearInterval(id);
-  }, [remoteStream, playRemoteVideo]);
+  }, [remoteStream, remoteVideoPlaying]);
 
   useEffect(() => {
     const audio = remoteAudioRef.current;
@@ -259,9 +265,6 @@ export default function VideoCall({ localStream, remoteStream, callError, userId
             ref={remoteRef}
             autoPlay
             playsInline
-            muted
-            onLoadedMetadata={() => { void playRemoteVideo(); }}
-            onCanPlay={() => { void playRemoteVideo(); }}
             onPlaying={() => { setRemoteVideoPlaying(true); setRemoteVideoRetryNeeded(false); }}
             onEmptied={() => setRemoteVideoPlaying(false)}
             onWaiting={() => setRemoteVideoPlaying(false)}
@@ -307,7 +310,10 @@ export default function VideoCall({ localStream, remoteStream, callError, userId
                 </p>
                 {remoteVideoRetryNeeded && (
                   <button
-                    onClick={() => { void playRemoteVideo(); }}
+                    onClick={() => {
+                      const v = remoteRef.current;
+                      if (v) { v.muted = true; void v.play().then(() => { setRemoteVideoPlaying(true); setRemoteVideoRetryNeeded(false); }).catch(() => {}); }
+                    }}
                     className="mt-3 rounded-xl bg-white px-4 py-2 text-xs font-semibold text-black transition hover:bg-white/90"
                   >
                     Retry video
