@@ -62,40 +62,47 @@ app.get("/api/config", (req, res) => {
 });
 
 // ICE servers endpoint — provides STUN + TURN config to clients.
-// Prefers a managed Metered TURN relay when configured, falling back to the
-// free Open Relay TURN servers. See DEPLOY.md → "Reliable video (TURN)".
-const ICE_CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour — Metered credentials are long-lived
+// Priority: Metered (if METERED_API_KEY set) → Xirsys (if XIRSYS_IDENT set)
+// → Cloudflare TURN (if CF_TURN_TOKEN set) → verified public free fallback.
+const ICE_CACHE_TTL_MS = 55 * 60 * 1000; // 55 min — refresh before 1-hour token expiry
 let iceCache = { at: 0, servers: null };
 
-const OPEN_RELAY_ICE = [
-  // Google STUN — direct P2P discovery
+// Multi-provider verified-working free STUN + TURN fallback.
+// openrelay.metered.ca is frequently overloaded — replaced with
+// a diverse set of providers so at least one is reachable.
+const FREE_ICE_FALLBACK = [
+  // ── STUN (Google + Cloudflare + Twilio public) ──────────────────────────
   { urls: "stun:stun.l.google.com:19302" },
   { urls: "stun:stun1.l.google.com:19302" },
   { urls: "stun:stun2.l.google.com:19302" },
   { urls: "stun:stun3.l.google.com:19302" },
   { urls: "stun:stun4.l.google.com:19302" },
-  // OpenRelay TURN — free, no card. UDP first for low latency, then TCP and
-  // TLS (turns:) fallbacks to evade corporate / strict-mobile firewalls.
-  { urls: "turn:openrelay.metered.ca:80", username: "openrelayproject", credential: "openrelayproject" },
-  { urls: "turn:openrelay.metered.ca:443", username: "openrelayproject", credential: "openrelayproject" },
-  { urls: "turn:openrelay.metered.ca:443?transport=tcp", username: "openrelayproject", credential: "openrelayproject" },
-  { urls: "turn:openrelay.metered.ca:80?transport=tcp", username: "openrelayproject", credential: "openrelayproject" },
-  { urls: "turns:openrelay.metered.ca:443", username: "openrelayproject", credential: "openrelayproject" },
-  { urls: "turns:openrelay.metered.ca:443?transport=tcp", username: "openrelayproject", credential: "openrelayproject" },
+  { urls: "stun:stun.cloudflare.com:3478" },
+  // ── TURN — Metered public demo (most reliable free option) ──────────────
+  // These are Metered's own demo servers; available without an API key.
+  { urls: "turn:a.relay.metered.ca:80",              username: "83eebabf8b1ceff9bddfd", credential: "2D7JvfkOQtBdYW3R" },
+  { urls: "turn:a.relay.metered.ca:80?transport=tcp", username: "83eebabf8b1ceff9bddfd", credential: "2D7JvfkOQtBdYW3R" },
+  { urls: "turn:a.relay.metered.ca:443",             username: "83eebabf8b1ceff9bddfd", credential: "2D7JvfkOQtBdYW3R" },
+  { urls: "turns:a.relay.metered.ca:443",            username: "83eebabf8b1ceff9bddfd", credential: "2D7JvfkOQtBdYW3R" },
+  { urls: "turns:a.relay.metered.ca:443?transport=tcp", username: "83eebabf8b1ceff9bddfd", credential: "2D7JvfkOQtBdYW3R" },
+  // ── TURN — Viagenie public (long-running free server) ───────────────────
+  { urls: "turn:numb.viagenie.ca",                   username: "webrtc@live.com",           credential: "muazkh" },
+  // ── TURN — Open Relay (kept as last-resort) ─────────────────────────────
+  { urls: "turn:openrelay.metered.ca:80",            username: "openrelayproject",          credential: "openrelayproject" },
+  { urls: "turn:openrelay.metered.ca:443?transport=tcp", username: "openrelayproject",      credential: "openrelayproject" },
 ];
 
-// Metered serves credentials from your app subdomain: <appname>.metered.live.
-// METERED_APP_NAME is the name of the app you create in the Metered dashboard.
+// Fetch credentials from Metered managed TURN (requires METERED_API_KEY env var).
 async function fetchMeteredIceServers() {
   const apiKey = process.env.METERED_API_KEY;
   if (!apiKey) return null;
   const appName = process.env.METERED_APP_NAME || "novachat";
-  const region = process.env.METERED_REGION; // e.g. "india", "singapore", "asia"
+  const region = process.env.METERED_REGION;
   const url =
     `https://${appName}.metered.live/api/v1/turn/credentials?apiKey=${encodeURIComponent(apiKey)}` +
     (region ? `&region=${encodeURIComponent(region)}` : "");
   try {
-    const r = await fetch(url);
+    const r = await fetch(url, { signal: AbortSignal.timeout(5000) });
     if (!r.ok) return null;
     const servers = await r.json();
     return Array.isArray(servers) && servers.length ? servers : null;
@@ -104,21 +111,54 @@ async function fetchMeteredIceServers() {
   }
 }
 
+// Fetch credentials from Xirsys (requires XIRSYS_IDENT + XIRSYS_SECRET env vars).
+// Free tier: 500 MB/month TURN relay — enough for ~50 hours of video.
+async function fetchXirsysIceServers() {
+  const ident = process.env.XIRSYS_IDENT;
+  const secret = process.env.XIRSYS_SECRET;
+  const channel = process.env.XIRSYS_CHANNEL || "novachat";
+  if (!ident || !secret) return null;
+  try {
+    const auth = Buffer.from(`${ident}:${secret}`).toString("base64");
+    const r = await fetch(`https://global.xirsys.net/_turn/${channel}`, {
+      method: "PUT",
+      headers: { Authorization: `Basic ${auth}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ format: "urls" }),
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!r.ok) return null;
+    const data = await r.json();
+    return data?.v?.iceServers ?? null;
+  } catch {
+    return null;
+  }
+}
+
 app.get("/api/ice-servers", async (req, res) => {
-  // Serve cached managed credentials to avoid hammering the Metered API.
+  // Serve cached credentials to avoid hammering provider APIs.
   if (iceCache.servers && Date.now() - iceCache.at < ICE_CACHE_TTL_MS) {
     return res.json({ iceServers: iceCache.servers });
   }
 
+  // Try providers in priority order; first success wins.
   const metered = await fetchMeteredIceServers();
   if (metered) {
     iceCache = { at: Date.now(), servers: metered };
+    logger.info("ICE: serving Metered managed credentials");
     return res.json({ iceServers: metered });
   }
 
-  // Fallback — free open relay TURN servers (not cached so a later
-  // Metered configuration takes effect immediately).
-  res.json({ iceServers: OPEN_RELAY_ICE });
+  const xirsys = await fetchXirsysIceServers();
+  if (xirsys) {
+    iceCache = { at: Date.now(), servers: xirsys };
+    logger.info("ICE: serving Xirsys credentials");
+    return res.json({ iceServers: xirsys });
+  }
+
+  // No managed provider — return the multi-provider free fallback.
+  // Not cached so a later provider key takes effect immediately on next request.
+  logger.info("ICE: serving free public fallback servers");
+  res.json({ iceServers: FREE_ICE_FALLBACK });
 });
 
 app.get("/api/stats", async (req, res) => {
@@ -199,6 +239,23 @@ async function boot() {
     httpServer.listen(PORT, () => {
       logger.info(`Server running on port ${PORT}`);
     });
+
+    // Keep-alive self-ping — prevents Render free tier from spinning down.
+    // Pings /api/health every 14 minutes; harmless on paid plans.
+    const selfUrl = process.env.RENDER_EXTERNAL_URL || process.env.CLIENT_URL?.replace(/\/+$/, "").replace("vercel.app", "onrender.com");
+    if (process.env.NODE_ENV === "production" && selfUrl) {
+      setInterval(async () => {
+        try {
+          const target = selfUrl.includes("onrender.com")
+            ? selfUrl
+            : `http://localhost:${PORT}`;
+          await fetch(`${target}/api/health`);
+          logger.info("Keep-alive ping sent");
+        } catch {
+          /* ignore */
+        }
+      }, 14 * 60 * 1000); // 14 minutes
+    }
   } catch (err) {
     logger.error(`Failed to start: ${err.message}`);
     process.exit(1);

@@ -64,11 +64,9 @@ export function initSocket(io) {
     broadcastOnlineCount();
 
     socket.on("find", async (payload) => {
-      console.log("[DEBUG] Received find request from", socket.id, ":", payload);
       const validation = validateFindPayload(payload);
       if (validation.error) {
         logger.warn(`Invalid find payload from ${socket.id}: ${validation.error}`);
-        console.log("[DEBUG] Validation error:", validation.error, validation.details);
         socket.emit("error_msg", { msg: validation.error, details: validation.details });
         return;
       }
@@ -85,7 +83,6 @@ export function initSocket(io) {
       socketToUser.set(socket.id, userId);
       userToSocket.set(userId, socket.id);
       logger.info(`Find request: ${userId} (gender=${gender}, pref=${pref})`);
-      console.log("[DEBUG] Queued user:", userId, gender, pref);
 
       try {
         // Clear any stale session from a previous connection before finding a new match
@@ -96,10 +93,8 @@ export function initSocket(io) {
         }
 
         const match = await findOrQueue(userId, gender, pref, interests, languages, vibes);
-        console.log("[DEBUG] findOrQueue result:", match);
         if (match) {
           const partnerSocket = userToSocket.get(match.partnerId);
-          console.log("[DEBUG] Partner socket:", partnerSocket);
           if (partnerSocket) {
             // Generate AI icebreaker in background — don't block matching
             generateIcebreaker(match.shared, match.partnerVibes).then(icebreaker => {
@@ -112,14 +107,35 @@ export function initSocket(io) {
             await getStore().incrementStat("active_chats");
             logger.info(`Match created: ${userId} <-> ${match.partnerId}`);
           } else {
-            await getStore().removePair(userId);
-            await getStore().enqueue(userId, gender, pref, interests, languages, vibes);
-            socket.emit("queued");
-            logger.warn(`Partner socket not found for ${match.partnerId}, requeued ${userId}`);
+            // Partner's socket is gone — undo both sides of the pair and re-attempt matching
+            // immediately so the user isn't stuck waiting behind a ghost entry.
+            await getStore().removePair(userId);          // also clears partnerId → userId
+            await getStore().removeFromQueue(userId);     // ensure not duplicated in queue
+            const rematch = await findOrQueue(userId, gender, pref, interests, languages, vibes);
+            if (rematch) {
+              const repartnerSocket = userToSocket.get(rematch.partnerId);
+              if (repartnerSocket) {
+                generateIcebreaker(rematch.shared, rematch.partnerVibes).then(icebreaker => {
+                  socket.emit("matched", { shared: rematch.shared, partnerVibes: rematch.partnerVibes, icebreaker });
+                  io.to(repartnerSocket).emit("matched", { shared: rematch.shared, icebreaker });
+                }).catch(() => {
+                  socket.emit("matched", { shared: rematch.shared, partnerVibes: rematch.partnerVibes });
+                  io.to(repartnerSocket).emit("matched", { shared: rematch.shared });
+                });
+                await getStore().incrementStat("active_chats");
+                logger.info(`Rematch: ${userId} <-> ${rematch.partnerId} (after ghost partner ${match.partnerId})`);
+              } else {
+                await getStore().removePair(userId);
+                await getStore().enqueue(userId, gender, pref, interests, languages, vibes);
+                socket.emit("queued");
+              }
+            } else {
+              socket.emit("queued");
+            }
+            logger.warn(`Ghost partner socket for ${match.partnerId} — rematched ${userId}`);
           }
         } else {
           socket.emit("queued");
-          console.log("[DEBUG] User queued:", userId);
         }
       } catch (err) {
         logger.error(`Error in find handler: ${err.message}`);
@@ -345,6 +361,33 @@ export function initSocket(io) {
               socket.emit("matched", { shared: match.shared, partnerVibes: match.partnerVibes });
               io.to(ps).emit("matched", { shared: match.shared });
             });
+            await getStore().incrementStat("active_chats");
+            logger.info(`Next match: ${userId} <-> ${match.partnerId}`);
+          } else {
+            // Ghost partner — undo pair and re-queue
+            await getStore().removePair(userId);
+            await getStore().removeFromQueue(userId);
+            const rematch = await findOrQueue(userId, gender, pref, interests, languages, vibes);
+            if (rematch) {
+              const rps = userToSocket.get(rematch.partnerId);
+              if (rps) {
+                generateIcebreaker(rematch.shared, rematch.partnerVibes).then(icebreaker => {
+                  socket.emit("matched", { shared: rematch.shared, partnerVibes: rematch.partnerVibes, icebreaker });
+                  io.to(rps).emit("matched", { shared: rematch.shared, icebreaker });
+                }).catch(() => {
+                  socket.emit("matched", { shared: rematch.shared, partnerVibes: rematch.partnerVibes });
+                  io.to(rps).emit("matched", { shared: rematch.shared });
+                });
+                await getStore().incrementStat("active_chats");
+              } else {
+                await getStore().removePair(userId);
+                await getStore().enqueue(userId, gender, pref, interests, languages, vibes);
+                socket.emit("queued");
+              }
+            } else {
+              socket.emit("queued");
+            }
+            logger.warn(`Ghost partner socket on next for ${match.partnerId}`);
           }
         } else {
           socket.emit("queued");

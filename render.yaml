@@ -30,13 +30,21 @@ services:
       - key: GROQ_API_KEY
         sync: false
       # Optional — Metered TURN for reliable video calls (https://metered.ca)
-      # METERED_API_KEY: the credential-scoped API key from your TURN credential.
       - key: METERED_API_KEY
         sync: false
-      # The app name you created in Metered (<appname>.metered.live).
       - key: METERED_APP_NAME
         value: novachat
-      # Optional — pin the nearest TURN region for lowest latency
-      # (e.g. india, singapore, asia). Leave unset to use Metered's default.
       - key: METERED_REGION
         value: india
+      # Optional — Xirsys TURN (https://xirsys.com, free 500MB/month)
+      - key: XIRSYS_IDENT
+        sync: false
+      - key: XIRSYS_SECRET
+        sync: false
+      - key: XIRSYS_CHANNEL
+        value: novachat
+      # Set this to your Render service URL after first deploy, e.g.:
+      # https://novachat-server-xxxx.onrender.com
+      # It enables the 14-minute keep-alive self-ping that prevents free-tier spin-down.
+      - key: RENDER_EXTERNAL_URL
+        sync: false

@@ -207,21 +207,25 @@ export default function Chat({ profile, onStop }: Props) {
     };
     const handleSocketDisconnect = () => {
       setSocketConnected(false);
-      // Only cleanup video call if it was active - prevents unnecessary cleanup
-      if (showVideo) {
-        cleanup();
-        setShowVideo(false);
-      }
+      // Use functional setter so the callback reads current state, not a stale closure value.
+      setShowVideo(prev => {
+        if (prev) { cleanup(); }
+        return false;
+      });
       setReconnecting(true);
     };
     const handleReconnectAttempt = () => setReconnecting(true);
     const handleReconnect = () => {
       setReconnecting(false);
       showToast("Reconnected", "success");
-      // Re-queue for matching after reconnect
-      if (status === "searching" || status === "chatting") {
-        socket.emit("find", { ...profile, languages: profile.languages, vibes: profile.vibes });
-      }
+      // Re-queue for matching after reconnect.
+      // Use functional form to read latest status without a stale closure.
+      setStatus(currentStatus => {
+        if (currentStatus === "searching" || currentStatus === "chatting") {
+          socket.emit("find", { ...profile, languages: profile.languages, vibes: profile.vibes });
+        }
+        return currentStatus;
+      });
     };
 
     socket.on("connect", handleSocketConnect);
@@ -276,12 +280,12 @@ export default function Chat({ profile, onStop }: Props) {
       });
     });
     socket.on("moderation_warning", ({ msg }: { msg: string }) => showToast(msg, "warn"));
+    socket.on("rate_limited", ({ msg }: { msg: string }) => showToast(msg ?? "Slow down!", "warn"));
 
     socket.io.on("reconnect_attempt", handleReconnectAttempt);
     socket.io.on("reconnect", handleReconnect);
 
     const emitFind = () => {
-      console.log("[DEBUG] Emitting find request:", profile);
       socket.emit("find", { ...profile, languages: profile.languages, vibes: profile.vibes });
     };
     if (socket.connected) emitFind();
@@ -293,7 +297,7 @@ export default function Chat({ profile, onStop }: Props) {
       socket.off("connect", emitFind);
       ["queued","matched","message","image","typing","stranger_left","stopped","banned",
        "webrtc:offer","webrtc:answer","webrtc:ice","webrtc:end",
-       "chat_summary","message_delivered","moderation_warning"].forEach((e) => socket.off(e));
+       "chat_summary","message_delivered","moderation_warning","rate_limited"].forEach((e) => socket.off(e));
       socket.io.off("reconnect_attempt", handleReconnectAttempt);
       socket.io.off("reconnect", handleReconnect);
     };

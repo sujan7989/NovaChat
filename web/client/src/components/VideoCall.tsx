@@ -117,11 +117,14 @@ export default function VideoCall({ localStream, remoteStream, callError, userId
     if (!video) return;
     if (video.srcObject !== remoteStream) {
       video.srcObject = remoteStream;
-      // Force a reload of the video element when stream changes
-      video.load();
+      // Do NOT call video.load() — that resets srcObject-based streams and causes black screen.
+      // For MediaStream srcObject, just reassign and trigger play directly.
+      if (remoteStream) {
+        void playRemoteVideo();
+      }
     }
     video.muted = true;
-  }, [remoteStream]);
+  }, [remoteStream, playRemoteVideo]);
 
   useEffect(() => {
     const audio = remoteAudioRef.current;

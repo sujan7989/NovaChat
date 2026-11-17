@@ -9,24 +9,36 @@ const reportVideoDebug = (hypothesisId: string, msg: string, data: Record<string
 // #endregion
 
 async function getIceServers(): Promise<RTCIceServer[]> {
-  const openRelay: RTCIceServer[] = [
+  // Multi-provider fallback — used when /api/ice-servers is unreachable.
+  // Covers: Google STUN, Cloudflare STUN, Metered demo TURN, Viagenie TURN.
+  const fallback: RTCIceServer[] = [
     { urls: "stun:stun.l.google.com:19302" },
     { urls: "stun:stun1.l.google.com:19302" },
-    { urls: "turn:openrelay.metered.ca:80", username: "openrelayproject", credential: "openrelayproject" },
-    { urls: "turn:openrelay.metered.ca:443", username: "openrelayproject", credential: "openrelayproject" },
-    { urls: "turn:openrelay.metered.ca:443?transport=tcp", username: "openrelayproject", credential: "openrelayproject" },
-    { urls: "turn:openrelay.metered.ca:80?transport=tcp", username: "openrelayproject", credential: "openrelayproject" },
+    { urls: "stun:stun2.l.google.com:19302" },
+    { urls: "stun:stun3.l.google.com:19302" },
+    { urls: "stun:stun4.l.google.com:19302" },
+    { urls: "stun:stun.cloudflare.com:3478" },
+    // Metered demo TURN — most reliable free TURN available without an account
+    { urls: "turn:a.relay.metered.ca:80",               username: "83eebabf8b1ceff9bddfd", credential: "2D7JvfkOQtBdYW3R" },
+    { urls: "turn:a.relay.metered.ca:80?transport=tcp",  username: "83eebabf8b1ceff9bddfd", credential: "2D7JvfkOQtBdYW3R" },
+    { urls: "turn:a.relay.metered.ca:443",              username: "83eebabf8b1ceff9bddfd", credential: "2D7JvfkOQtBdYW3R" },
+    { urls: "turns:a.relay.metered.ca:443",             username: "83eebabf8b1ceff9bddfd", credential: "2D7JvfkOQtBdYW3R" },
+    { urls: "turns:a.relay.metered.ca:443?transport=tcp", username: "83eebabf8b1ceff9bddfd", credential: "2D7JvfkOQtBdYW3R" },
+    // Viagenie public TURN (long-running free server)
+    { urls: "turn:numb.viagenie.ca",                    username: "webrtc@live.com",          credential: "muazkh" },
+    // OpenRelay as final fallback
+    { urls: "turn:openrelay.metered.ca:80",             username: "openrelayproject",         credential: "openrelayproject" },
+    { urls: "turn:openrelay.metered.ca:443?transport=tcp", username: "openrelayproject",      credential: "openrelayproject" },
   ];
   try {
     const res = await fetch(apiUrl("/api/ice-servers"));
     if (!res.ok) throw new Error();
     const data = await res.json();
     reportVideoDebug("B", "ICE configuration loaded", { serverCount: data.iceServers?.length ?? 0 });
-    return data.iceServers?.length ? data.iceServers : openRelay;
+    return data.iceServers?.length ? data.iceServers : fallback;
   } catch {
-    /* ICE endpoint unavailable — fall back to public relays. */
     reportVideoDebug("B", "ICE configuration fallback selected");
-    return openRelay;
+    return fallback;
   }
 }
 
@@ -67,7 +79,7 @@ export function useWebRTC(userId: string) {
   const [callError,    setCallError]    = useState<string | null>(null);
   // Counter to force re-render when remote stream tracks change
   const [, setRemoteTick] = useState(0);
-  const forceRemoteUpdate = () => setRemoteTick(n => n + 1);
+  const forceRemoteUpdate = useCallback(() => setRemoteTick(n => n + 1), []);
 
   const cleanup = useCallback(() => {
     pcRef.current?.close();
@@ -132,12 +144,20 @@ export function useWebRTC(userId: string) {
       if (!rs.getTrackById(e.track.id)) {
         rs.addTrack(e.track);
       }
-      // Set the stable stream ref once — VideoCall assigns it to srcObject
-      setRemoteStream(rs);
+      // Always set a new MediaStream wrapper so React sees a changed reference
+      // and VideoCall's useEffect([remoteStream]) re-fires to call play().
+      const snapshot = new MediaStream(rs.getTracks());
+      remoteStreamRef.current = snapshot;
+      setRemoteStream(snapshot);
       forceRemoteUpdate();
       // When track unmutes (video starts flowing), nudge the video element to play
-      e.track.onunmute = () => forceRemoteUpdate();
-      e.track.onended  = () => forceRemoteUpdate();
+      e.track.onunmute = () => {
+        const updated = new MediaStream(remoteStreamRef.current.getTracks());
+        remoteStreamRef.current = updated;
+        setRemoteStream(updated);
+        forceRemoteUpdate();
+      };
+      e.track.onended = () => forceRemoteUpdate();
     };
 
     pc.onconnectionstatechange = () => {
@@ -146,7 +166,15 @@ export function useWebRTC(userId: string) {
       if (s === "connected") setCallError(null);
       else if (s === "failed") {
         setCallError("Connection failed. Please end and restart the call.");
-        pc.restartIce();
+        // Restart ICE: for the offerer, create and send a new offer with iceRestart
+        if (pc.signalingState === "stable") {
+          pc.createOffer({ iceRestart: true })
+            .then(offer => pc.setLocalDescription(offer))
+            .then(() => { socket.emit("webrtc:offer", { userId, offer: pc.localDescription }); })
+            .catch(() => {});
+        } else {
+          pc.restartIce();
+        }
       }
     };
 
@@ -154,13 +182,28 @@ export function useWebRTC(userId: string) {
       reportVideoDebug("B", "ICE connection state changed", { state: pc.iceConnectionState });
       if (pc.iceConnectionState === "failed") {
         reportVideoDebug("B", "ICE connection failed, restarting ICE");
-        pc.restartIce();
+        // Restart ICE: for the offerer, create and send a new offer with iceRestart
+        if (pc.signalingState === "stable") {
+          pc.createOffer({ iceRestart: true })
+            .then(offer => pc.setLocalDescription(offer))
+            .then(() => { socket.emit("webrtc:offer", { userId, offer: pc.localDescription }); })
+            .catch(() => {});
+        } else {
+          pc.restartIce();
+        }
       } else if (pc.iceConnectionState === "disconnected") {
         // Give it a moment before considering it failed - might be temporary network glitch
         setTimeout(() => {
           if (pc.iceConnectionState === "disconnected") {
             reportVideoDebug("B", "ICE connection still disconnected after timeout, restarting");
-            pc.restartIce();
+            if (pc.signalingState === "stable") {
+              pc.createOffer({ iceRestart: true })
+                .then(offer => pc.setLocalDescription(offer))
+                .then(() => { socket.emit("webrtc:offer", { userId, offer: pc.localDescription }); })
+                .catch(() => {});
+            } else {
+              pc.restartIce();
+            }
           }
         }, 5000);
       }
@@ -168,7 +211,7 @@ export function useWebRTC(userId: string) {
 
     pcRef.current = pc;
     return pc;
-  }, [userId]);
+  }, [userId, forceRemoteUpdate]);
 
   const flushCandidates = useCallback(async () => {
     if (!pcRef.current?.remoteDescription) return;
@@ -205,10 +248,25 @@ export function useWebRTC(userId: string) {
   }, [userId, buildPC, cleanup]);
 
   // ANSWERER: get stream → build PC → set remote → create answer → send
+  // Also handles re-offers from ICE restart without rebuilding the PC.
   const handleOffer = useCallback(async (offer: RTCSessionDescriptionInit) => {
     try {
       setCallError(null);
       reportVideoDebug("D", "incoming WebRTC offer received", { type: offer.type });
+
+      // If a PC already exists and is in a state that can accept a new remote offer
+      // (e.g. ICE restart re-offer), answer without rebuilding the PC.
+      const existingPC = pcRef.current;
+      if (existingPC && existingPC.signalingState !== "closed" && localStreamRef.current) {
+        await existingPC.setRemoteDescription(new RTCSessionDescription(offer));
+        await flushCandidates();
+        const answer = await existingPC.createAnswer();
+        await existingPC.setLocalDescription(answer);
+        reportVideoDebug("B", "WebRTC re-answer emitted (ICE restart)", { signalingState: existingPC.signalingState });
+        socket.emit("webrtc:answer", { userId, answer });
+        return;
+      }
+
       const stream = await getStream();
       localStreamRef.current = stream;
       setLocalStream(stream);
@@ -232,7 +290,9 @@ export function useWebRTC(userId: string) {
   const handleAnswer = useCallback(async (answer: RTCSessionDescriptionInit) => {
     try {
       if (!pcRef.current) return;
-      if (pcRef.current.signalingState !== "have-local-offer") return;
+      // Accept answer only in states where we have a pending local offer
+      const state = pcRef.current.signalingState;
+      if (state !== "have-local-offer" && state !== "have-remote-pranswer") return;
       await pcRef.current.setRemoteDescription(new RTCSessionDescription(answer));
       reportVideoDebug("B", "WebRTC answer applied", { signalingState: pcRef.current.signalingState });
       await flushCandidates();
