@@ -73,12 +73,19 @@ export async function dequeueMatch(userId, myGender, myPref, myInterests, myLang
       continue;
     }
 
-    // Gender pref — hard rule only when specific pref set
+    // Gender pref matching logic:
+    // - If I want "any", I match with anyone
+    // - If I want specific (male/female), they must match my preference
+    // - If they want "any", they match with anyone
+    // - If they want specific (male/female), I must match their preference
     const myPrefSpecific    = myPref !== "any";
     const theirPrefSpecific = c.pref !== "any";
 
-    if (myPrefSpecific    && myPref !== c.gender)  continue;
-    if (theirPrefSpecific && c.pref !== myGender)  continue;
+    // Check if I'm compatible with them based on my preference
+    if (myPrefSpecific && myPref !== c.gender) continue;  // I want specific, they don't match
+
+    // Check if they're compatible with me based on their preference
+    if (theirPrefSpecific && c.pref !== myGender) continue;  // They want specific, I don't match
 
     let score = 1; // base: gender compatible
 

@@ -74,13 +74,19 @@ export async function dequeueMatch(userId, myGender, myPref, myInterests, myLang
     const c = queue[i];
     if (c.userId === me) continue;
 
-    // Gender pref must be mutually satisfied (hard rule only when BOTH have a specific pref)
-    // If either side chose "any", it always passes
+    // Gender pref matching logic:
+    // - If I want "any", I match with anyone
+    // - If I want specific (male/female), they must match my preference
+    // - If they want "any", they match with anyone
+    // - If they want specific (male/female), I must match their preference
     const myPrefSpecific    = myPref    !== "any";
     const theirPrefSpecific = c.pref    !== "any";
 
-    if (myPrefSpecific && myPref !== c.gender) continue;       // I want specific, they don't match
-    if (theirPrefSpecific && c.pref !== myGender) continue;    // They want specific, I don't match
+    // Check if I'm compatible with them based on my preference
+    if (myPrefSpecific && myPref !== c.gender) continue;  // I want specific, they don't match
+
+    // Check if they're compatible with me based on their preference
+    if (theirPrefSpecific && c.pref !== myGender) continue;  // They want specific, I don't match
 
     let score = 1; // base: gender pref compatible
 
@@ -103,8 +109,7 @@ export async function dequeueMatch(userId, myGender, myPref, myInterests, myLang
     }
   }
 
-  // If best candidate has a negative score (lang mismatch, no other overlap),
-  // still connect them — soft preference, never block forever
+  // If no match found in queue, return null
   if (bestIdx === -1) return null;
 
   const chosen = queue[bestIdx];
