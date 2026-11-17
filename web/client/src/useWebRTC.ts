@@ -136,22 +136,30 @@ export function useWebRTC(userId: string) {
     };
 
     pc.ontrack = (e) => {
-      reportVideoDebug("C", "remote media track received", { kind: e.track.kind, readyState: e.track.readyState, muted: e.track.muted, streamCount: e.streams.length });
-      const rs = remoteStreamRef.current;
-      if (!rs.getTrackById(e.track.id)) {
-        rs.addTrack(e.track);
-      }
-      // Always set a new MediaStream wrapper so React sees a changed reference
-      // and VideoCall's useEffect([remoteStream]) re-fires to call play().
-      const snapshot = new MediaStream(rs.getTracks());
-      remoteStreamRef.current = snapshot;
-      setRemoteStream(snapshot);
+      reportVideoDebug("C", "remote media track received", {
+        kind: e.track.kind,
+        readyState: e.track.readyState,
+        muted: e.track.muted,
+        streamCount: e.streams.length,
+      });
+
+      // Always use the stream from the event if available — it already has
+      // all tracks bundled, which avoids race conditions with addTrack.
+      const inboundStream = e.streams[0] ?? (() => {
+        const rs = remoteStreamRef.current;
+        if (!rs.getTrackById(e.track.id)) rs.addTrack(e.track);
+        return rs;
+      })();
+
+      remoteStreamRef.current = inboundStream;
+      setRemoteStream(inboundStream);
       forceRemoteUpdate();
-      // When track unmutes (video starts flowing), nudge the video element to play
+
+      // Track starts muted until ICE/TURN relay is established and frames flow.
+      // Fire another update when it unmutes so the video element retries play().
       e.track.onunmute = () => {
-        const updated = new MediaStream(remoteStreamRef.current.getTracks());
-        remoteStreamRef.current = updated;
-        setRemoteStream(updated);
+        reportVideoDebug("C", "remote track unmuted — frames flowing", { kind: e.track.kind });
+        setRemoteStream(new MediaStream(remoteStreamRef.current.getTracks()));
         forceRemoteUpdate();
       };
       e.track.onended = () => forceRemoteUpdate();
@@ -160,10 +168,16 @@ export function useWebRTC(userId: string) {
     pc.onconnectionstatechange = () => {
       const s = pc.connectionState;
       reportVideoDebug("B", "peer connection state changed", { connectionState: s, iceConnectionState: pc.iceConnectionState });
-      if (s === "connected") setCallError(null);
-      else if (s === "failed") {
-        setCallError("Connection failed. Please end and restart the call.");
-        // Restart ICE: for the offerer, create and send a new offer with iceRestart
+      if (s === "connected") {
+        setCallError(null);
+        // Connection fully up — push a fresh stream ref so VideoCall's
+        // useEffect re-fires and calls video.play() now that frames flow.
+        if (remoteStreamRef.current.getTracks().length > 0) {
+          setRemoteStream(new MediaStream(remoteStreamRef.current.getTracks()));
+          forceRemoteUpdate();
+        }
+      } else if (s === "failed") {
+        setCallError("Connection failed — retrying…");
         if (pc.signalingState === "stable") {
           pc.createOffer({ iceRestart: true })
             .then(offer => pc.setLocalDescription(offer))
@@ -177,9 +191,16 @@ export function useWebRTC(userId: string) {
 
     pc.oniceconnectionstatechange = () => {
       reportVideoDebug("B", "ICE connection state changed", { state: pc.iceConnectionState });
-      if (pc.iceConnectionState === "failed") {
+      if (pc.iceConnectionState === "connected" || pc.iceConnectionState === "completed") {
+        // ICE is up — push a fresh stream ref to trigger video.play() in VideoCall
+        if (remoteStreamRef.current.getTracks().length > 0) {
+          const updated = new MediaStream(remoteStreamRef.current.getTracks());
+          remoteStreamRef.current = updated;
+          setRemoteStream(updated);
+          forceRemoteUpdate();
+        }
+      } else if (pc.iceConnectionState === "failed") {
         reportVideoDebug("B", "ICE connection failed, restarting ICE");
-        // Restart ICE: for the offerer, create and send a new offer with iceRestart
         if (pc.signalingState === "stable") {
           pc.createOffer({ iceRestart: true })
             .then(offer => pc.setLocalDescription(offer))
@@ -189,10 +210,9 @@ export function useWebRTC(userId: string) {
           pc.restartIce();
         }
       } else if (pc.iceConnectionState === "disconnected") {
-        // Give it a moment before considering it failed - might be temporary network glitch
         setTimeout(() => {
           if (pc.iceConnectionState === "disconnected") {
-            reportVideoDebug("B", "ICE connection still disconnected after timeout, restarting");
+            reportVideoDebug("B", "ICE still disconnected after timeout, restarting");
             if (pc.signalingState === "stable") {
               pc.createOffer({ iceRestart: true })
                 .then(offer => pc.setLocalDescription(offer))

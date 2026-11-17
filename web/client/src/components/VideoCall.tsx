@@ -103,27 +103,44 @@ export default function VideoCall({ localStream, remoteStream, callError, userId
   const playRemoteVideo = useCallback(async () => {
     const video = remoteRef.current;
     if (!video) return;
-    video.muted = true;
-    try {
-      await video.play();
-      setRemoteVideoRetryNeeded(false);
-    } catch {
-      setRemoteVideoRetryNeeded(true);
+    video.muted = true; // must stay muted for autoplay policy
+    if (video.srcObject && (video.paused || video.readyState < 2)) {
+      try {
+        await video.play();
+        setRemoteVideoRetryNeeded(false);
+      } catch {
+        setRemoteVideoRetryNeeded(true);
+      }
     }
   }, []);
 
+  // Assign srcObject and play whenever remoteStream changes.
+  // Never call video.load() on a MediaStream — it resets the element.
   useEffect(() => {
     const video = remoteRef.current;
     if (!video) return;
     if (video.srcObject !== remoteStream) {
-      video.srcObject = remoteStream;
-      // Do NOT call video.load() — that resets srcObject-based streams and causes black screen.
-      // For MediaStream srcObject, just reassign and trigger play directly.
-      if (remoteStream) {
-        void playRemoteVideo();
-      }
+      video.srcObject = remoteStream ?? null;
+      if (remoteStream) void playRemoteVideo();
     }
-    video.muted = true;
+  }, [remoteStream, playRemoteVideo]);
+
+  // Poll every 800 ms: if the video element has a stream but hasn't started
+  // playing yet, nudge it. This covers the case where tracks arrive before
+  // ICE/TURN relay is fully open and onCanPlay never fires.
+  useEffect(() => {
+    if (!remoteStream) return;
+    const id = setInterval(() => {
+      const video = remoteRef.current;
+      if (!video) return;
+      if (video.paused || video.readyState < 2) {
+        void playRemoteVideo();
+      } else {
+        setRemoteVideoPlaying(true);
+        clearInterval(id);
+      }
+    }, 800);
+    return () => clearInterval(id);
   }, [remoteStream, playRemoteVideo]);
 
   useEffect(() => {
