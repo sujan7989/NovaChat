@@ -59,30 +59,55 @@ app.get("/api/config", (req, res) => {
   res.json(getPublicConfig());
 });
 
-// ICE servers endpoint — provides STUN + TURN config to clients
+// ICE servers endpoint — provides STUN + TURN config to clients.
+// Prefers a managed Metered TURN relay when configured, falling back to the
+// free Open Relay TURN servers. See DEPLOY.md → "Reliable video (TURN)".
+const ICE_CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour — Metered credentials are long-lived
+let iceCache = { at: 0, servers: null };
+
+const OPEN_RELAY_ICE = [
+  { urls: "stun:stun.l.google.com:19302" },
+  { urls: "stun:stun1.l.google.com:19302" },
+  { urls: "turn:openrelay.metered.ca:80", username: "openrelayproject", credential: "openrelayproject" },
+  { urls: "turn:openrelay.metered.ca:443", username: "openrelayproject", credential: "openrelayproject" },
+  { urls: "turn:openrelay.metered.ca:443?transport=tcp", username: "openrelayproject", credential: "openrelayproject" },
+];
+
+// Metered serves credentials from your app subdomain: <appname>.metered.live.
+// METERED_APP_NAME is the name of the app you create in the Metered dashboard.
+async function fetchMeteredIceServers() {
+  const apiKey = process.env.METERED_API_KEY;
+  if (!apiKey) return null;
+  const appName = process.env.METERED_APP_NAME || "novachat";
+  const region = process.env.METERED_REGION; // e.g. "india", "singapore", "asia"
+  const url =
+    `https://${appName}.metered.live/api/v1/turn/credentials?apiKey=${encodeURIComponent(apiKey)}` +
+    (region ? `&region=${encodeURIComponent(region)}` : "");
+  try {
+    const r = await fetch(url);
+    if (!r.ok) return null;
+    const servers = await r.json();
+    return Array.isArray(servers) && servers.length ? servers : null;
+  } catch {
+    return null;
+  }
+}
+
 app.get("/api/ice-servers", async (req, res) => {
-  // Use env var only — no hardcoded fallback key
-  const meteredApiKey = process.env.METERED_API_KEY;
-  if (meteredApiKey) {
-    try {
-      const r = await fetch(`https://novachat-app.metered.live/api/v1/turn/credentials?apiKey=${meteredApiKey}`);
-      if (r.ok) {
-        const servers = await r.json();
-        return res.json({ iceServers: servers });
-      }
-    } catch {}
+  // Serve cached managed credentials to avoid hammering the Metered API.
+  if (iceCache.servers && Date.now() - iceCache.at < ICE_CACHE_TTL_MS) {
+    return res.json({ iceServers: iceCache.servers });
   }
 
-  // Fallback to free open relay TURN servers
-  res.json({
-    iceServers: [
-      { urls: "stun:stun.l.google.com:19302" },
-      { urls: "stun:stun1.l.google.com:19302" },
-      { urls: "turn:openrelay.metered.ca:80", username: "openrelayproject", credential: "openrelayproject" },
-      { urls: "turn:openrelay.metered.ca:443", username: "openrelayproject", credential: "openrelayproject" },
-      { urls: "turn:openrelay.metered.ca:443?transport=tcp", username: "openrelayproject", credential: "openrelayproject" },
-    ],
-  });
+  const metered = await fetchMeteredIceServers();
+  if (metered) {
+    iceCache = { at: Date.now(), servers: metered };
+    return res.json({ iceServers: metered });
+  }
+
+  // Fallback — free open relay TURN servers (not cached so a later
+  // Metered configuration takes effect immediately).
+  res.json({ iceServers: OPEN_RELAY_ICE });
 });
 
 app.get("/api/stats", async (req, res) => {

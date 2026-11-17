@@ -61,12 +61,12 @@ METERED_API_KEY=<optional>
 
 ## Step 3 — Point the client at the server (Vercel)
 
-The client reads a single variable, `VITE_API_URL` — the server origin with **no
-trailing slash**. It is **not committed** (env-driven config); set it in Vercel:
+The client reads a single backend origin with **no trailing slash**. Set it in Vercel:
 
 1. Vercel → your project → **Settings → Environment Variables**
 2. Add for **Production** (and Preview):
-   `VITE_API_URL=https://<name>.onrender.com`
+   `VITE_BACKEND_URL=https://<name>.onrender.com`
+   (`VITE_API_URL` is also read as a legacy fallback)
 3. **Redeploy** so the new value is baked into the build.
 
 > This one variable drives both REST (`/api/*`) and the Socket.IO connection —
@@ -83,6 +83,61 @@ it responsive:
 2. Add monitor → HTTP(s)
 3. URL: `https://<name>.onrender.com/api/health`
 4. Interval: every 5 minutes
+
+---
+
+## Reliable video (TURN)
+
+Calls connect peer-to-peer via STUN, but on strict mobile/corporate networks a
+TURN relay is required. The server uses a **Metered** TURN relay when configured
+(`/api/ice-servers`), and falls back to the free Open Relay TURN servers otherwise.
+
+1. https://dashboard.metered.ca/signup?tool=turnserver → sign up free
+2. Create an **app** (its name becomes your subdomain: `<appname>.metered.live`)
+3. Create a **TURN credential** → **Show API Key** (this is the *credential-scoped*
+   key, safe for the server to use)
+4. Set these env vars on the server (Render/Northflank):
+
+```
+METERED_API_KEY=<credential API key>
+METERED_APP_NAME=<your app name>       # e.g. novachat
+METERED_REGION=india                    # optional: nearest region for lowest latency
+```
+
+> `METERED_APP_NAME` **must** match the app you created, otherwise the
+> credentials request 404s and the server silently uses Open Relay.
+
+---
+
+## Always-on backend, no cold starts (Northflank, free)
+
+Render's free tier sleeps; **Northflank's free plan runs 2 services always-on
+with no credit card**, which removes the "connecting to server" cold-start delay.
+
+A `Dockerfile` is included at `web/server/Dockerfile` for this.
+
+1. https://northflank.com → sign up free → create a **Project**
+2. **Create Service → Combined Service → Build from repo** (connect GitHub)
+3. Settings:
+   - **Build context / Dockerfile path:** `web/server/Dockerfile`
+   - **Port:** `4000` (Northflank injects `PORT`; the server reads it)
+   - **Health check path:** `/api/health`
+   - **Type:** Web Service
+4. Environment variables (same as Render):
+
+```
+NODE_ENV=production
+CLIENT_URL=https://novachat-three.vercel.app
+REDIS_URL=<your Upstash Redis URL>      # optional but recommended
+JWT_SECRET=<openssl rand -hex 32>
+METERED_API_KEY=<optional>
+METERED_APP_NAME=<optional>
+METERED_REGION=india                    # optional
+GROQ_API_KEY=<optional>
+```
+
+5. Deploy, copy the service URL, then set `VITE_BACKEND_URL` in Vercel to it and
+   redeploy the client.
 
 ---
 

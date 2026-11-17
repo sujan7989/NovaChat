@@ -30,5 +30,13 @@ services:
       - key: GROQ_API_KEY
         sync: false
       # Optional — Metered TURN for reliable video calls (https://metered.ca)
+      # METERED_API_KEY: the credential-scoped API key from your TURN credential.
       - key: METERED_API_KEY
         sync: false
+      # The app name you created in Metered (<appname>.metered.live).
+      - key: METERED_APP_NAME
+        value: novachat
+      # Optional — pin the nearest TURN region for lowest latency
+      # (e.g. india, singapore, asia). Leave unset to use Metered's default.
+      - key: METERED_REGION
+        value: india
